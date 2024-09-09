@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  input {
+    @apply rounded py-1.5 px-3 focus:outline-none border border-blue-300 transition-shadow duration-200 focus:shadow-[0_0_10px_#9ecaed];
+  }
+
+  button {
+    @apply rounded py-1.5 px-3 transition-colors duration-200 bg-indigo-200 hover:bg-indigo-100 shadow-md border border-indigo-400 text-gray-900;
+  }
+}
