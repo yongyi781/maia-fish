@@ -7,7 +7,9 @@
     @apply rounded py-1.5 px-3 focus:outline-none border border-blue-300 transition-shadow duration-200 focus:shadow-[0_0_10px_#9ecaed];
   }
 
-  button {
-    @apply rounded py-1.5 px-3 transition-colors duration-200 bg-indigo-200 hover:bg-indigo-100 shadow-md border border-indigo-400 text-gray-900;
+  .btn {
+    @apply rounded-md py-1.5 px-3 transition-colors duration-75 border
+         bg-slate-200 border-slate-300 hover:bg-slate-100 active:bg-slate-300 active:text-gray-600
+         dark:bg-slate-700 dark:border-slate-700 dark:hover:bg-slate-600 dark:active:bg-slate-800 dark:active:text-gray-300;
   }
 }

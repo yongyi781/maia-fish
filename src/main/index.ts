@@ -3,9 +3,11 @@ import { app, BrowserWindow, ipcMain, Menu, MenuItem, MenuItemConstructorOptions
 import { join } from "path"
 import icon from "../../resources/icon.png?asset"
 
+let mainWindow: BrowserWindow
+
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     backgroundColor: "black",
     width: 1024,
     height: 900,
@@ -71,8 +73,8 @@ app.whenReady().then(() => {
         {
           label: "Flip board",
           accelerator: "F",
-          click(_menuItem, browserWindow) {
-            ;(browserWindow as BrowserWindow)?.webContents.send("flipBoard")
+          click() {
+            mainWindow.webContents.send("flipBoard")
           }
         }
       ]
@@ -83,8 +85,8 @@ app.whenReady().then(() => {
         {
           label: "Random move",
           accelerator: "/",
-          click(_menuItem, browserWindow) {
-            ;(browserWindow as BrowserWindow)?.webContents.send("playRandomMove")
+          click() {
+            mainWindow.webContents.send("playRandomMove")
           }
         }
       ]

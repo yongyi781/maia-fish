@@ -9,10 +9,6 @@
   let moveNumber: number, turn: Color, history: string[]
   let chessUI: Chess
 
-  window.electron.ipcRenderer.on("flipBoard", () => {
-    chessUI.toggleOrientation()
-  })
-
   export function move(san: string) {
     chessUI.move(san)
   }
