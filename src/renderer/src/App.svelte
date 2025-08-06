@@ -23,13 +23,16 @@
   let chess = Chess.default()
   let chessUI: ChessUI
   let fenStr: string
+  let num = 2
 
   $currentNode = game.moves
   $: {
     fenStr = ($currentNode as pgn.ChildNode<MyNodeData>)?.data?.fen ?? game.headers["FEN"] ?? fen.INITIAL_FEN
   }
 
-  function onClick() {}
+  function onClick() {
+    ++num
+  }
 
   function onMove(e: CustomEvent<Move>) {
     chess.play(parseSan(chess, e.detail.san))
@@ -90,20 +93,20 @@
 
   onMount(() => {
     // For debug: play some moves
-    chessUI.move("e4")
-    chessUI.move("e5")
+    for (let move of ["e4", "e5", "Nf3", "f6", "Nxe5"]) chessUI.move(move)
   })
 </script>
 
-<div class="grid grid-cols-[auto_1fr] gap-2">
+<div class="h-full grid grid-cols-[auto_1fr] gap-2">
   <div class="w-[512px] select-none" on:wheel={onWheel}>
+    <!-- Chessboard -->
     <ChessUI bind:this={chessUI} on:move={onMove} />
   </div>
-  <div class="grid grid-rows-[1fr_1fr] gap-2 h-full max-h-[512px]">
+  <div class="grid grid-rows-[1fr_1fr] h-full max-h-[512px]">
     <div>
       <!-- Infobox -->
       <button class="btn" on:click={onClick}
-        >Click <span class="inline-flex items-center justify-center w-4 h-4 ms-2 text-xs font-semibold text-blue-800 bg-blue-200 rounded-full"> 2 </span>
+        >Click <span class="inline-flex items-center justify-center w-4 h-4 ms-2 text-xs font-semibold text-blue-800 bg-blue-200 rounded-full">{num}</span>
       </button>
       <button
         type="button"
@@ -132,11 +135,15 @@
         </label>
       </button>
     </div>
-    <div class="select-none overflow-scroll">
-      <!-- Move list -->
-      <MoveListNode ply={0} node={game.moves} />
+    <div class="overflow-scroll p-1">
+      <div class="select-none flex flex-wrap">
+        <!-- Move list -->
+        <MoveListNode ply={0} node={game.moves} />
+      </div>
     </div>
   </div>
   <div class="col-span-3">FEN&nbsp;&nbsp;&nbsp;&nbsp; {fenStr}</div>
-  <div class="col-span-3"><pre class="text-sm p-2 whitespace-pre-wrap bg-slate-200 dark:bg-slate-800">{game == null ? "" : pgn.makePgn(game)}</pre></div>
+  <div class="col-span-3 flex-1 overflow-scroll overflow-y-auto">
+    <pre class="text-sm p-2 whitespace-pre-wrap bg-slate-200 dark:bg-slate-800">{game == null ? "" : pgn.makePgn(game)}</pre>
+  </div>
 </div>

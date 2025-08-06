@@ -1,4 +1,4 @@
-<script lang="ts">
+<!-- <script lang="ts">
   import { Chess } from "svelte-chess"
   import type { Color, Move } from "svelte-chess/dist/api"
 
@@ -19,4 +19,4 @@
 <Chess bind:moveNumber bind:turn bind:history bind:this={chessUI} on:move={onmove} />
 <p>
   It's move {moveNumber}, with {turn} to move. Moves played: {history?.join(" ")}.
-</p>
+</p> -->
