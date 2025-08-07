@@ -1,45 +1,54 @@
 <script lang="ts">
-  import { ChildNode, Node } from "chessops/pgn"
-  import type { MyNodeData } from "../MyNodeData"
-  import { currentNode } from "../stores"
+  import { ChildNode, gameState, Node, type NodeData } from "../game.svelte"
+  import Self from "./MoveListNode.svelte"
 
-  export let ply: number
-  export let node: Node<MyNodeData>
-  export let firstInVariation = false
+  interface Props {
+    ply: number
+    node: Node
+    firstInVariation?: boolean
+  }
+
+  const { ply, node, firstInVariation }: Props = $props()
 
   function setCurrentNode() {
-    if ($currentNode !== node) $currentNode = node
+    if (gameState.currentNode !== node) gameState.currentNode = node
   }
 
   function inCurrentLine() {
-    let n = $currentNode.end()
-    while (n instanceof ChildNode) {
-      if (n === node) return true
-      n = n.data.parent
-    }
-    return false
+    return node instanceof ChildNode && gameState.currentLine.includes(node)
   }
 </script>
 
 {#if node instanceof ChildNode}
   <button
-    class="px-1 font-bold hover:bg-[#555577] {$currentNode === node ? 'bg-[#333355] outline outline-1 outline-[#6cccee]' : ''} {inCurrentLine()
-      ? ''
-      : 'text-gray-400 dark:text-gray-600'}"
-    on:mousedown={setCurrentNode}
-    on:click={setCurrentNode}
+    class="px-1 font-bold hover:bg-[#555577] {node === gameState.currentNode
+      ? 'bg-[#333355] outline-1 outline-[#6cccee]'
+      : ''} {inCurrentLine() ? '' : 'text-gray-400 dark:text-gray-600'}"
+    onmousedown={setCurrentNode}
+    onclick={setCurrentNode}
   >
     {#if ply % 2 == 1}
-      <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{(ply + 1) / 2}.</span>
+      <span class="font-normal text-sm text-gray-400 dark:text-gray-500"
+        >{(ply + 1) / 2}.</span
+      >
     {:else if firstInVariation}
-      <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{ply / 2}...</span>
+      <span class="font-normal text-sm text-gray-400 dark:text-gray-500"
+        >{ply / 2}...</span
+      >
     {/if}
     {node.data.san}</button
   >
 {/if}
 {#if node.children.length > 0}
-  <svelte:self ply={ply + 1} bind:node={node.children[0]} />
-  {#each node.children.slice(1) as child}
-    <span class="text-gray-400 dark:text-gray-600">(</span><svelte:self ply={ply + 1} bind:node={child} firstInVariation /><span class="text-gray-500">)</span>
+  {#each node.children as child, i}
+    {#if i == 0}
+      <Self ply={ply + 1} node={child} />
+    {:else}
+      <span class="text-gray-400 dark:text-gray-600">(</span><Self
+        ply={ply + 1}
+        node={child}
+        firstInVariation
+      /><span class="text-gray-500">)</span>
+    {/if}
   {/each}
 {/if}

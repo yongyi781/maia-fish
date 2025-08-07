@@ -16,7 +16,7 @@
   let { onmove }: Props = $props()
 </script>
 
-<Chess bind:moveNumber bind:turn bind:history bind:this={chessUI} on:move={onmove} />
+<Chess bind:moveNumber bind:turn bind:history bind:this={chessUI} onmove={onmove} />
 <p>
   It's move {moveNumber}, with {turn} to move. Moves played: {history?.join(" ")}.
 </p> -->

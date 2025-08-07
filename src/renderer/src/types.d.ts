@@ -1,9 +1,10 @@
 import { pgn } from "chessops"
+import { ElectronAPI } from "@electron-toolkit/preload"
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: unknown
+    api: any
   }
 }
 
@@ -19,9 +20,4 @@ export interface Eval {
   pvs?: PvData[]
   cp?: number
   mate?: number
-}
-
-export interface NodeData extends pgn.PgnNodeData {
-  fen: string
-  eval?: Eval
 }

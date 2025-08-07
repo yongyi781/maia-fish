@@ -1,9 +1,11 @@
-import { electronApp, is, optimizer } from "@electron-toolkit/utils"
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, MenuItemConstructorOptions, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
 import { join } from "path"
+import { electronApp, is, optimizer } from "@electron-toolkit/utils"
 import icon from "../../resources/icon.png?asset"
+import { ChildProcess, spawn } from "child_process"
 
 let mainWindow: BrowserWindow
+let stockfishProcess: ChildProcess
 
 function createWindow(): void {
   // Create the browser window.
@@ -11,7 +13,6 @@ function createWindow(): void {
     backgroundColor: "black",
     width: 1024,
     height: 900,
-    show: true,
     ...(process.platform === "linux" ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -27,8 +28,6 @@ function createWindow(): void {
     shell.openExternal(details.url)
     return { action: "deny" }
   })
-
-  ipcMain.handle("hey", () => 0.1)
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
@@ -54,6 +53,28 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // IPC
+  ipcMain.handle("choose-stockfish", async () => {
+    const result = await dialog.showOpenDialog({ properties: ["openFile"] })
+    return result.filePaths[0]
+  })
+
+  ipcMain.on("start-stockfish", (event, exePath) => {
+    if (stockfishProcess) stockfishProcess.kill()
+
+    stockfishProcess = spawn(exePath)
+
+    stockfishProcess.stdout!.on("data", (data) => {
+      event.sender.send("stockfish-output", data.toString())
+    })
+  })
+
+  ipcMain.on("stockfish-command", (_, command) => {
+    if (stockfishProcess && stockfishProcess.stdin!.writable) {
+      stockfishProcess.stdin!.write(command + "\n")
+    }
+  })
+
   createWindow()
 
   app.on("activate", function () {
@@ -62,7 +83,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  const template: (MenuItem | MenuItemConstructorOptions)[] = [
+  const menu = Menu.buildFromTemplate([
     {
       label: "File",
       submenu: [{ role: "cut" }, { role: "copy" }, { role: "paste" }]
@@ -95,9 +116,7 @@ app.whenReady().then(() => {
       label: "Window",
       submenu: [{ role: "reload" }]
     }
-  ]
-
-  const menu = Menu.buildFromTemplate(template)
+  ])
   Menu.setApplicationMenu(menu)
 })
 
@@ -109,6 +128,3 @@ app.on("window-all-closed", () => {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app"s specific main process
-// code. You can also put them in separate files and require them here.

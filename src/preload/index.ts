@@ -1,8 +1,14 @@
-import { contextBridge } from "electron"
+import { contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
 
 // Custom APIs for renderer
-const api = {}
+const api = {
+  chooseStockfish: () => ipcRenderer.invoke("choose-stockfish"),
+  start: (path: string) => ipcRenderer.send("start-stockfish", path),
+  sendCommand: (cmd: string) => ipcRenderer.send("stockfish-command", cmd),
+  onOutput: (callback: (output: string) => void) =>
+    ipcRenderer.on("stockfish-output", (_, data) => callback(data))
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
@@ -15,6 +21,8 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  window["electron"] = electronAPI
-  window["api"] = api
+  // @ts-ignore (define in dts)
+  window.electron = electronAPI
+  // @ts-ignore (define in dts)
+  window.api = api
 }
