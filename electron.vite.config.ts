@@ -4,7 +4,12 @@ import tailwindcss from "@tailwindcss/vite"
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        external: ["onnxruntime-node"]
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()]

@@ -1,13 +1,23 @@
 import { contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
+import { AppConfig } from "../main/config"
 
 // Custom APIs for renderer
 const api = {
+  config: {
+    get: () => ipcRenderer.invoke("config:get"),
+    set: (config: AppConfig) => ipcRenderer.invoke("config:set", config)
+  },
   chooseStockfish: () => ipcRenderer.invoke("choose-stockfish"),
   start: (path: string) => ipcRenderer.send("start-stockfish", path),
   sendCommand: (cmd: string) => ipcRenderer.send("stockfish-command", cmd),
-  onOutput: (callback: (output: string) => void) =>
-    ipcRenderer.on("stockfish-output", (_, data) => callback(data))
+  analyzeMaia: ({ boardInput, eloSelfCategory, eloOppoCategory }) =>
+    ipcRenderer.invoke("analyze-maia", {
+      boardInput,
+      eloSelfCategory,
+      eloOppoCategory
+    }),
+  onOutput: (callback: (output: string) => void) => ipcRenderer.on("stockfish-output", (_, data) => callback(data))
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

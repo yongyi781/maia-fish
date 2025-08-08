@@ -1,0 +1,51 @@
+import { app } from "electron"
+import { join } from "path"
+import { readFileSync, writeFileSync, existsSync } from "fs"
+
+const CONFIG_VERSION = 1
+
+export interface AppConfig {
+  version: number
+  stockfishPath: string
+}
+
+const defaultConfig: AppConfig = {
+  version: CONFIG_VERSION,
+  stockfishPath: String.raw`C:\Apps\Stockfish\stockfish_x86-64-bmi2.exe`
+}
+
+export const configPath = join(app.getPath("userData"), "config.json")
+
+export function loadConfig(): AppConfig {
+  try {
+    if (!existsSync(configPath)) {
+      saveConfig(defaultConfig)
+      return { ...defaultConfig }
+    }
+
+    const raw = readFileSync(configPath, "utf-8")
+    const parsed = JSON.parse(raw)
+
+    const merged = {
+      ...defaultConfig,
+      ...parsed
+    }
+
+    // Optional: handle version upgrades here
+    if (merged.version !== CONFIG_VERSION) {
+      console.warn(`Config version mismatch. Upgrading from ${merged.version} → ${CONFIG_VERSION}`)
+      merged.version = CONFIG_VERSION
+      saveConfig(merged)
+    }
+
+    return merged
+  } catch (err) {
+    console.error("Failed to load config, falling back to defaults:", err)
+    saveConfig(defaultConfig)
+    return { ...defaultConfig }
+  }
+}
+
+export function saveConfig(config: AppConfig) {
+  writeFileSync(configPath, JSON.stringify(config, null, 2))
+}

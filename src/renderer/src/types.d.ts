@@ -8,16 +8,9 @@ declare global {
   }
 }
 
-export interface PvData {
-  moves: string[]
-  mate?: number
-  cp?: number
-}
-
-export interface Eval {
-  depth?: number
-  nodes?: number
-  pvs?: PvData[]
-  cp?: number
-  mate?: number
+/** Evaluation score. */
+export type Score = {
+  type: "cp" | "mate" | "tablebase"
+  value: number
+  bound?: "lower" | "upper"
 }

@@ -4,11 +4,14 @@
     <meta charset="utf-8" />
     <title>Nibbler 2</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
   </head>
 
-  <body class="dark bg-slate-100 dark:bg-slate-900 dark:text-slate-100 m-2 transition-colors duration-100">
-    <main id="app" class="h-full"></main>
+  <body class="dark bg-slate-100 dark:bg-slate-900 dark:text-slate-100">
+    <main id="app"></main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

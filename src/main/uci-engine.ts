@@ -1,0 +1,166 @@
+/** Not used yet. */
+
+import { spawn, ChildProcessWithoutNullStreams } from "child_process"
+import { EventEmitter } from "events"
+
+export interface GoOptions {
+  searchmoves?: string[]
+  ponder?: boolean
+  wtime?: number
+  btime?: number
+  winc?: number
+  binc?: number
+  movestogo?: number
+  depth?: number
+  nodes?: number
+  mate?: number
+  movetime?: number
+  infinite?: boolean
+}
+
+export class UciEngine extends EventEmitter {
+  private engineProcess: ChildProcessWithoutNullStreams | null = null
+  private enginePath: string
+  private engineArgs: string[]
+  private isReadyOk: boolean = false
+  private uciOk: boolean = false
+
+  constructor(enginePath: string, engineArgs: string[] = []) {
+    super()
+    this.enginePath = enginePath
+    this.engineArgs = engineArgs
+  }
+
+  public start(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.engineProcess = spawn(this.enginePath, this.engineArgs)
+
+        this.engineProcess.stdout.on("data", (data: Buffer) => {
+          const output = data.toString().trim()
+          this.emit("output", output)
+          this.handleEngineOutput(output)
+        })
+
+        this.engineProcess.stderr.on("data", (data: Buffer) => {
+          const error = data.toString().trim()
+          this.emit("error", `Engine Error: ${error}`)
+        })
+
+        this.engineProcess.on("close", (code: number) => {
+          this.emit("close", code)
+          this.engineProcess = null
+          this.isReadyOk = false
+          this.uciOk = false
+        })
+
+        this.engineProcess.on("error", (err: Error) => {
+          this.emit("error", `Process Error: ${err.message}`)
+          reject(err)
+        })
+
+        this.uci()
+          .then(() => this.isready())
+          .then(() => {
+            this.emit("ready")
+            resolve()
+          })
+          .catch(reject)
+      } catch (error: any) {
+        this.emit("error", `Failed to start engine: ${error.message}`)
+        reject(error)
+      }
+    })
+  }
+
+  public stop(): void {
+    if (this.engineProcess) {
+      this.engineProcess.kill()
+    }
+  }
+
+  public send(command: string): void {
+    if (this.engineProcess && this.engineProcess.stdin) {
+      this.engineProcess.stdin.write(`${command}\n`)
+    } else {
+      this.emit("error", "Engine process not running or stdin not available.")
+    }
+  }
+
+  public async uci(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("UCI command timed out."))
+      }, 5000) // 5 seconds timeout
+
+      const onOutput = (output: string) => {
+        if (output === "uciok") {
+          this.uciOk = true
+          this.removeListener("output", onOutput)
+          clearTimeout(timeout)
+          resolve()
+        }
+      }
+      this.on("output", onOutput)
+      this.send("uci")
+    })
+  }
+
+  public async isready(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("IsReady command timed out."))
+      }, 5000) // 5 seconds timeout
+
+      const onOutput = (output: string) => {
+        if (output === "readyok") {
+          this.isReadyOk = true
+          this.removeListener("output", onOutput)
+          clearTimeout(timeout)
+          resolve()
+        }
+      }
+      this.on("output", onOutput)
+      this.send("isready")
+    })
+  }
+
+  public ucinewgame(): void {
+    this.send("ucinewgame")
+  }
+
+  public position(fen: string, moves: string[] = []): void {
+    let command = `position ${fen === "startpos" ? "startpos" : `fen ${fen}`}`
+    if (moves.length > 0) {
+      command += ` moves ${moves.join(" ")}`
+    }
+    this.send(command)
+  }
+
+  public go(options: GoOptions): void {
+    let command = "go"
+    if (options.searchmoves)
+      command += ` searchmoves ${options.searchmoves.join(" ")}`
+    if (options.ponder) command += " ponder"
+    if (options.wtime) command += ` wtime ${options.wtime}`
+    if (options.btime) command += ` btime ${options.btime}`
+    if (options.winc) command += ` winc ${options.winc}`
+    if (options.binc) command += ` binc ${options.binc}`
+    if (options.movestogo) command += ` movestogo ${options.movestogo}`
+    if (options.depth) command += ` depth ${options.depth}`
+    if (options.nodes) command += ` nodes ${options.nodes}`
+    if (options.mate) command += ` mate ${options.mate}`
+    if (options.movetime) command += ` movetime ${options.movetime}`
+    if (options.infinite) command += " infinite"
+    this.send(command)
+  }
+
+  public setOption(name: string, value: string): void {
+    this.send(`setoption name ${name} value ${value}`)
+  }
+
+  private handleEngineOutput(output: string): void {
+    // This method can be extended to parse specific engine outputs like 'info', 'bestmove', etc.
+    // For now, it just emits the raw output.
+  }
+}

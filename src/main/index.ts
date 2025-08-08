@@ -1,11 +1,16 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
-import { join } from "path"
 import { electronApp, is, optimizer } from "@electron-toolkit/utils"
+import { ChildProcessWithoutNullStreams, spawn } from "child_process"
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
+import { InferenceSession, Tensor } from "onnxruntime-node"
+import { join } from "path"
 import icon from "../../resources/icon.png?asset"
-import { ChildProcess, spawn } from "child_process"
+import maia_rapid from "../../resources/maia_rapid.onnx?asset"
+import { AppConfig, loadConfig, saveConfig } from "./config"
 
 let mainWindow: BrowserWindow
-let stockfishProcess: ChildProcess
+let stockfishProcess: ChildProcessWithoutNullStreams
+let maiaModel: InferenceSession
+let config: AppConfig
 
 function createWindow(): void {
   // Create the browser window.
@@ -42,7 +47,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId("com.electron")
 
@@ -54,25 +59,29 @@ app.whenReady().then(() => {
   })
 
   // IPC
+  ipcMain.handle("config:get", () => config)
+
+  ipcMain.handle("config:set", (_, newConfig) => {
+    saveConfig(newConfig)
+  })
+
   ipcMain.handle("choose-stockfish", async () => {
     const result = await dialog.showOpenDialog({ properties: ["openFile"] })
     return result.filePaths[0]
   })
 
-  ipcMain.on("start-stockfish", (event, exePath) => {
-    if (stockfishProcess) stockfishProcess.kill()
-
-    stockfishProcess = spawn(exePath)
-
-    stockfishProcess.stdout!.on("data", (data) => {
-      event.sender.send("stockfish-output", data.toString())
-    })
+  ipcMain.on("stockfish-command", (_, command) => {
+    if (stockfishProcess && stockfishProcess.stdin.writable) stockfishProcess.stdin.write(command + "\n")
   })
 
-  ipcMain.on("stockfish-command", (_, command) => {
-    if (stockfishProcess && stockfishProcess.stdin!.writable) {
-      stockfishProcess.stdin!.write(command + "\n")
+  ipcMain.handle("analyze-maia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
+    if (!maiaModel) return
+    const feeds: Record<string, Tensor> = {
+      boards: new Tensor("float32", boardInput, [1, 18, 8, 8]),
+      elo_self: new Tensor("int64", [eloSelfCategory]),
+      elo_oppo: new Tensor("int64", [eloOppoCategory])
     }
+    return maiaModel.run(feeds)
   })
 
   createWindow()
@@ -89,7 +98,7 @@ app.whenReady().then(() => {
       submenu: [{ role: "cut" }, { role: "copy" }, { role: "paste" }]
     },
     {
-      label: "Display",
+      label: "View",
       submenu: [
         {
           label: "Flip board",
@@ -118,6 +127,19 @@ app.whenReady().then(() => {
     }
   ])
   Menu.setApplicationMenu(menu)
+
+  config = loadConfig()
+  console.log("Config: ", config)
+
+  if (stockfishProcess) stockfishProcess.kill()
+  stockfishProcess = spawn(config.stockfishPath)
+  stockfishProcess.stdout.on("data", (data: Buffer) => {
+    mainWindow.webContents.send("stockfish-output", data.toString())
+  })
+  stockfishProcess.stdin.write(
+    "uci\nisready\nucinewgame\nsetoption name Threads value 14\nsetoption name MultiPV value 256"
+  )
+  maiaModel = await InferenceSession.create(maia_rapid)
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
