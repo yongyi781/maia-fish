@@ -1,6 +1,6 @@
 import { electronApp, is, optimizer } from "@electron-toolkit/utils"
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import { join } from "path"
 import icon from "../../resources/icon.png?asset"
@@ -71,6 +71,7 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.on("stockfish-command", (_, command) => {
+    console.debug("stockfish-command", command)
     if (stockfishProcess && stockfishProcess.stdin.writable) stockfishProcess.stdin.write(command + "\n")
   })
 
@@ -91,11 +92,76 @@ app.whenReady().then(async () => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-
   const menu = Menu.buildFromTemplate([
     {
       label: "File",
-      submenu: [{ role: "cut" }, { role: "copy" }, { role: "paste" }]
+      submenu: [
+        {
+          label: "New Game",
+          accelerator: "Ctrl+N",
+          click() {
+            mainWindow.webContents.send("newGame")
+          }
+        },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        {
+          label: "Paste FEN/PGN",
+          accelerator: "Ctrl+Shift+V",
+          click() {
+            mainWindow.webContents.send("pasteFenPgn", [clipboard.readText()])
+          }
+        }
+      ]
+    },
+    {
+      label: "Tree",
+      submenu: [
+        {
+          label: "Root",
+          accelerator: "Home",
+          click() {
+            mainWindow.webContents.send("gotoRoot")
+          }
+        },
+        {
+          label: "End",
+          accelerator: "End",
+          click() {
+            mainWindow.webContents.send("gotoEnd")
+          }
+        },
+        {
+          label: "Back",
+          accelerator: "Left",
+          click() {
+            mainWindow.webContents.send("goBack")
+          }
+        },
+        {
+          label: "Forward",
+          accelerator: "Right",
+          click() {
+            mainWindow.webContents.send("goForward")
+          }
+        },
+        {
+          label: "Delete node",
+          accelerator: "Backspace",
+          click() {
+            mainWindow.webContents.send("deleteNode")
+          }
+        },
+        {
+          label: "Delete other lines",
+          accelerator: "X",
+          click() {
+            mainWindow.webContents.send("deleteOtherLines")
+          }
+        }
+      ]
     },
     {
       label: "View",
@@ -113,8 +179,22 @@ app.whenReady().then(async () => {
       label: "Play",
       submenu: [
         {
-          label: "Random move",
+          label: "Weighted human move",
           accelerator: "/",
+          click() {
+            mainWindow.webContents.send("playWeightedHumanMove")
+          }
+        },
+        {
+          label: "Top human move",
+          accelerator: "CommandOrControl+/",
+          click() {
+            mainWindow.webContents.send("playTopHumanMove")
+          }
+        },
+        {
+          label: "Random move",
+          accelerator: "Alt+/",
           click() {
             mainWindow.webContents.send("playRandomMove")
           }
@@ -136,9 +216,14 @@ app.whenReady().then(async () => {
   stockfishProcess.stdout.on("data", (data: Buffer) => {
     mainWindow.webContents.send("stockfish-output", data.toString())
   })
-  stockfishProcess.stdin.write(
-    "uci\nisready\nucinewgame\nsetoption name Threads value 14\nsetoption name MultiPV value 256"
-  )
+  stockfishProcess.stdin.write(`
+uci
+isready
+ucinewgame
+setoption name Threads value 14
+setoption name Hash value 2048
+setoption name MultiPV value 256
+`)
   maiaModel = await InferenceSession.create(maia_rapid)
 })
 

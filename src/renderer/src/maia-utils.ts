@@ -1,9 +1,9 @@
-import { Chess, makeUci, Role, squareRank } from "chessops"
+import { Chess, makeUci } from "chessops"
 import { parseFen } from "chessops/fen"
 import { Tensor } from "onnxruntime-node"
 import allPossibleMovesDict from "./all_moves.json"
 import allPossibleMovesReversedDict from "./all_moves_reversed.json"
-import { legalMoves } from "./utils"
+import { allLegalMoves } from "./utils"
 
 const allPossibleMoves = allPossibleMovesDict as Record<string, number>
 const allPossibleMovesReversed = allPossibleMovesReversedDict as Record<number, string>
@@ -277,7 +277,7 @@ export function preprocess(
   const legalMovesArr = new Float32Array(Object.keys(allPossibleMoves).length)
 
   const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap()
-  for (let move of legalMoves(pos)) {
+  for (let move of allLegalMoves(pos)) {
     const moveIndex = allPossibleMoves[makeUci(move)]
     if (moveIndex !== undefined) {
       legalMovesArr[moveIndex] = 1.0
@@ -346,6 +346,5 @@ export function processOutputs(
   for (let i = 0; i < legalMoveIndices.length; i++) {
     moveProbs[legalMovesMirrored[i]] = probs[i]
   }
-
   return { policy: moveProbs, value: winProb }
 }

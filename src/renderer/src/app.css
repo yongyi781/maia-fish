@@ -1,10 +1,6 @@
 @import "tailwindcss";
 
 @layer base {
-  input {
-    @apply rounded-md py-1.5 px-3 focus:outline-none border border-slate-800 transition-shadow duration-200 focus:shadow-[0_0_10px_#9ecaed];
-  }
-
   .btn {
     @apply rounded-md py-1.5 px-3 transition-colors duration-75 border
          bg-slate-200 border-slate-300 hover:bg-slate-100 active:bg-slate-300 active:text-gray-600

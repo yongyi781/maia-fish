@@ -10,7 +10,7 @@ const api = {
   },
   chooseStockfish: () => ipcRenderer.invoke("choose-stockfish"),
   start: (path: string) => ipcRenderer.send("start-stockfish", path),
-  sendCommand: (cmd: string) => ipcRenderer.send("stockfish-command", cmd),
+  sendEngineCommand: (cmd: string) => ipcRenderer.send("stockfish-command", cmd),
   analyzeMaia: ({ boardInput, eloSelfCategory, eloOppoCategory }) =>
     ipcRenderer.invoke("analyze-maia", {
       boardInput,

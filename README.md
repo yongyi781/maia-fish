@@ -1,34 +1,38 @@
-# electron-svelte-example
+# nibbler2
 
-An Electron application with Svelte and TypeScript
+A chess GUI for comparing Stockfish and Maia analysis.
 
-## Recommended IDE Setup
+This application allows you to analyze chess positions and games with two different engines:
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- **Stockfish**: A powerful, traditional chess engine.
+- **Maia**: A neural network trained to emulate human play at different skill levels.
 
-## Project Setup
+## Features
 
-### Install
+- **Side-by-side analysis**: See the top moves and evaluations from both Stockfish and Maia for any given position.
+- **PGN support**: Load your own games in PGN format to analyze them.
+- **Interactive board**: Play through moves and see the engines' analysis update in real-time.
+- **Configurable engine settings**: Adjust the depth and other parameters for Stockfish.
 
-```bash
-$ npm install
-```
+## Usage
 
-### Development
+1.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+2.  **Run the application in development mode**:
+    ```bash
+    npm run dev
+    ```
+3.  **Build the application for production**:
 
-```bash
-$ npm run dev
-```
+    ```bash
+    # For Windows
+    npm run build:win
 
-### Build
+    # For macOS
+    npm run build:mac
 
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
+    # For Linux
+    npm run build:linux
+    ```

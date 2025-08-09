@@ -139,8 +139,7 @@ export class UciEngine extends EventEmitter {
 
   public go(options: GoOptions): void {
     let command = "go"
-    if (options.searchmoves)
-      command += ` searchmoves ${options.searchmoves.join(" ")}`
+    if (options.searchmoves) command += ` searchmoves ${options.searchmoves.join(" ")}`
     if (options.ponder) command += " ponder"
     if (options.wtime) command += ` wtime ${options.wtime}`
     if (options.btime) command += ` btime ${options.btime}`
