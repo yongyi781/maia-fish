@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { run } from 'svelte/legacy';
+
   import { Chessground } from "chessground"
   import type { Color, Drop, FEN, Key, MouchEvent, Piece, PiecesDiff } from "chessground/types"
 
@@ -21,102 +23,104 @@
    * stylesheet than the default.
    * @type {string}
    */
-  let className: string = "cg-default-style"
-  export { className as class }
+  
 
-  /**
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  interface Props {
+    class?: string;
+    /**
    * Chess position in Forsyth-Edwards notation.
    * @type {import('chessground/types').FEN | undefined}
    */
-  export let fen: FEN | undefined = undefined
-  $: setConfig({ fen: fen })
-
-  /**
+    fen?: FEN | undefined;
+    /**
    * Board orientation: white or black.
    * @type {import('chessground/types').Color | undefined}
    */
-  export let orientation: Color | undefined = undefined
-  $: setConfig({ orientation: orientation })
-
-  /**
+    orientation?: Color | undefined;
+    /**
    * Side to play: white or black.
    * @type {import('chessground/types').Color | undefined}
    */
-  export let turnColor: Color | undefined = undefined
-  $: setConfig({ turnColor: turnColor })
-
-  /**
+    turnColor?: Color | undefined;
+    /**
    * Color in check, for highlighting the square. True for the current
    * color, or false to unset.
    * @type {import('chessground/types').Color | boolean | undefined}
    */
-  export let check: Color | boolean | undefined = undefined
-  $: setConfig({ check: check })
-
-  /**
+    check?: Color | boolean | undefined;
+    /**
    * Squares of the last move, for highlighting.
    * @type {import('chessground/types').Key[] | undefined}
    */
-  export let lastMove: Key[] | undefined = undefined
-  $: setConfig({ lastMove: lastMove })
-
-  /**
+    lastMove?: Key[] | undefined;
+    /**
    * Square currently selected.
    * @type {import('chessground/types').Key | undefined}
    */
-  export let selected: Key | undefined = undefined
-  $: setConfig({ selected: selected })
-
-  /**
+    selected?: Key | undefined;
+    /**
    * Draw board coordinates (a-h, 1-8).
    * @type {boolean | undefined}
    */
-  export let coordinates: boolean | undefined = undefined
-  $: setConfig({ coordinates: coordinates })
-
-  /**
+    coordinates?: boolean | undefined;
+    /**
    * Immediately complete castling by moving the rook after the king move.
    * @type {boolean | undefined}
    */
-  export let autoCastle: boolean | undefined = undefined
-  $: setConfig({ autoCastle: autoCastle })
-
-  /**
+    autoCastle?: boolean | undefined;
+    /**
    * Don't bind events: the user will never be able to move pieces around.
    * @type {boolean | undefined}
    */
-  export let viewOnly: boolean | undefined = undefined
-  $: setConfig({ viewOnly: viewOnly })
-
-  /**
+    viewOnly?: boolean | undefined;
+    /**
    * Disable the right-click context menu.
    * @type {boolean | undefined}
    */
-  export let disableContextMenu: boolean | undefined = undefined
-  $: setConfig({ disableContextMenu: disableContextMenu })
-
-  /**
+    disableContextMenu?: boolean | undefined;
+    /**
    * Add z-index to pieces (for 3D).
    * @type {boolean | undefined}
    */
-  export let addPieceZIndex: boolean | undefined = undefined
-  $: setConfig({ addPieceZIndex: addPieceZIndex })
-
-  /**
+    addPieceZIndex?: boolean | undefined;
+    /**
    * Add --cg-width and --cg-height CSS vars containing the board's dimensions to this element.
    * @type {HTMLElement | undefined}
    */
-  export let addDimensionsCssVarsTo: HTMLElement | undefined = undefined
-  $: setConfig({ addDimensionsCssVarsTo: addDimensionsCssVarsTo })
-
-  /**
+    addDimensionsCssVarsTo?: HTMLElement | undefined;
+    /**
    * Block scrolling via touch dragging on the board, e.g. for coordinate training
    * @type {boolean | undefined}
    */
-  export let blockTouchScroll: boolean | undefined = undefined
-  $: setConfig({ blockTouchScroll: blockTouchScroll })
-
-  /**
+    blockTouchScroll?: boolean | undefined;
+    /**
    * Chessground configuration. The config prop can be used to set any
    * config keys, and is needed to set config keys that lack own
    * props: highlight, animation, movable, premovable, predroppable,
@@ -124,8 +128,26 @@
    * https://github.com/lichess-org/chessground/blob/master/src/api.ts
    * @type {import('chessground/config').Config}
    */
-  export let config: import("chessground/config").Config = {}
-  $: setConfig(config)
+    config?: import("chessground/config").Config;
+  }
+
+  let {
+    class: className = "cg-default-style",
+    fen = undefined,
+    orientation = undefined,
+    turnColor = undefined,
+    check = undefined,
+    lastMove = undefined,
+    selected = undefined,
+    coordinates = undefined,
+    autoCastle = undefined,
+    viewOnly = undefined,
+    disableContextMenu = undefined,
+    addPieceZIndex = undefined,
+    addDimensionsCssVarsTo = undefined,
+    blockTouchScroll = undefined,
+    config = $bindable({})
+  }: Props = $props();
 
   /**
    *
@@ -134,7 +156,7 @@
    */
 
   /** @type {HTMLDivElement} */
-  let container: HTMLDivElement
+  let container: HTMLDivElement = $state()
 
   /** @type {import('chessground/api').Api} */
   let chessground: import("chessground/api").Api
@@ -347,6 +369,48 @@
   export function destroy(): void {
     return chessground.destroy()
   }
+  run(() => {
+    setConfig({ fen: fen })
+  });
+  run(() => {
+    setConfig({ orientation: orientation })
+  });
+  run(() => {
+    setConfig({ turnColor: turnColor })
+  });
+  run(() => {
+    setConfig({ check: check })
+  });
+  run(() => {
+    setConfig({ lastMove: lastMove })
+  });
+  run(() => {
+    setConfig({ selected: selected })
+  });
+  run(() => {
+    setConfig({ coordinates: coordinates })
+  });
+  run(() => {
+    setConfig({ autoCastle: autoCastle })
+  });
+  run(() => {
+    setConfig({ viewOnly: viewOnly })
+  });
+  run(() => {
+    setConfig({ disableContextMenu: disableContextMenu })
+  });
+  run(() => {
+    setConfig({ addPieceZIndex: addPieceZIndex })
+  });
+  run(() => {
+    setConfig({ addDimensionsCssVarsTo: addDimensionsCssVarsTo })
+  });
+  run(() => {
+    setConfig({ blockTouchScroll: blockTouchScroll })
+  });
+  run(() => {
+    setConfig(config)
+  });
 </script>
 
 <div class="cg-wrap {className}" bind:this={container}></div>

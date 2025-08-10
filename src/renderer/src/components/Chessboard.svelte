@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { MoveMetadata, Key } from "chessground/types"
-  import { Chess, makeSquare, type NormalMove, parseSquare } from "chessops"
+  import type { Key, MoveMetadata } from "chessground/types"
+  import { Chess, makeSquare, type NormalMove, parseSquare, type Role } from "chessops"
   import { INITIAL_FEN, makeFen } from "chessops/fen"
-  import { onMount } from "svelte"
+  import { mount, onMount, unmount } from "svelte"
   import Chessground from "./Chessground.svelte"
   import PromotionDialog from "./PromotionDialog.svelte"
 
@@ -20,9 +20,9 @@
 
   let cg: Chessground
   let container: HTMLDivElement
-  let promotionVisible = $state(false)
-  let promotionColor: "w" | "b" = $state("w")
-  let pendingMove: NormalMove | undefined
+  // let promotionVisible = $state(false)
+  // let promotionColor: "w" | "b" = $state("w")
+  // let pendingMove: NormalMove | undefined
 
   /** Loads a legal Chess position. */
   export function load(pos: Chess, lastMove?: NormalMove) {
@@ -51,7 +51,7 @@
     cg.toggleOrientation()
   }
 
-  function handleCgMove(orig: Key, dest: Key, metadata: MoveMetadata) {
+  async function handleCgMove(orig: Key, dest: Key, metadata: MoveMetadata) {
     if (orig === "a0" || dest === "a0") {
       // the Chessground square type (Key) includes a0
       throw Error("invalid square")
@@ -63,28 +63,27 @@
       if (metadata.ctrlKey) {
         res.promotion = "queen"
       } else {
-        res.promotion = "queen"
+        res.promotion = await promotionCallback(dest)
       }
-    } else {
-      onmove?.(res)
     }
+    onmove?.(res)
   }
 
-  function handlePromotionSelect(piece: string) {
-    promotionVisible = false
-    // pendingMove.promotion = piece
-    onmove?.(pendingMove)
-  }
+  // function handlePromotionSelect(piece: string) {
+  //   promotionVisible = false
+  //   // pendingMove.promotion = piece
+  //   onmove?.(pendingMove)
+  // }
 
   function promotionCallback(square: any) {
-    return new Promise<string>((resolve) => {
-      const element = new PromotionDialog({
+    return new Promise<Role>((resolve) => {
+      const element = mount(PromotionDialog, {
         target: container,
         props: {
           square,
           color: orientation,
-          callback: (piece: string | PromiseLike<string>) => {
-            element.$destroy()
+          callback: (piece) => {
+            unmount(element)
             resolve(piece)
           }
         }

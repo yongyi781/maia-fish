@@ -30,7 +30,6 @@
     "@tailwindcss/vite": "^4.1.11",
     "@types/node": "^24.2.1",
     "autoprefixer": "^10.4.21",
-    "chess.js": "^1.4.0",
     "chessground": "^9.2.1",
     "chessops": "^0.14.2",
     "electron": "^37.2.6",
