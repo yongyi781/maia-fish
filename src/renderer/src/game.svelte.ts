@@ -1,4 +1,4 @@
-import { fen, makeUci, pgn } from "chessops"
+import { fen, makeUci, type NormalMove, pgn } from "chessops"
 import { makeFen } from "chessops/fen"
 import { makeSan, parseSan } from "chessops/san"
 import { Score } from "./types"
@@ -36,6 +36,7 @@ export interface MoveAnalysis {
   humanProbability?: number
   /** Number of nodes searched in this analysis. */
   nodes?: number
+  nps?: number
 }
 
 /**
@@ -49,7 +50,7 @@ export class NodeData implements pgn.PgnNodeData {
   /** The FEN string for the position. */
   fen: string
   /** Side to move. */
-  side: "w" | "b"
+  turn: "w" | "b"
   /** Legal move analyses: key is LAN, value iseval, depth, Maia policy, ... */
   moveAnalyses: Record<string, MoveAnalysis> = $state({})
   /** The parent node. */
@@ -63,7 +64,7 @@ export class NodeData implements pgn.PgnNodeData {
     if (!this.fen) {
       this.fen = fen.INITIAL_FEN
     }
-    this.side = this.fen.split(" ")[1] as "w" | "b"
+    this.turn = this.fen.split(" ")[1] as "w" | "b"
     const pos = chessFromFen(this.fen)
     const pairs = allLegalMoves(pos).map((move) => {
       return [makeUci(move), { pv: [makeSan(pos, move)] }]
@@ -85,6 +86,32 @@ export class NodeData implements pgn.PgnNodeData {
       (acc, [_, ma]) => acc + rawEvalClamped(ma.score) * (ma.humanProbability ?? 0),
       0
     )
+  })
+
+  /** Gets the top human move according to the analysis. */
+  topHumanMoveUci: string | undefined = $derived.by(() => {
+    const entries = Object.entries(gameState.currentNode.data.moveAnalyses).filter(
+      (a) => a[1].humanProbability !== undefined
+    )
+    if (entries.length === 0) return undefined
+    return entries.reduce((a, b) => (a[1].humanProbability > b[1].humanProbability ? a : b))[0]
+  })
+
+  /** Gets the top engine move (multiple if tied) according to the analysis. */
+  topEngineMovesUci: string[] = $derived.by(() => {
+    const entries = Object.entries(gameState.currentNode.data.moveAnalyses).filter((a) => a[1].score !== undefined)
+    if (entries.length === 0) return []
+    let res = []
+    let bestScore = -Infinity
+    for (const [uci, ma] of entries) {
+      if (rawEval(ma.score) > bestScore) {
+        res = [uci]
+        bestScore = rawEval(ma.score)
+      } else if (rawEval(ma.score) === bestScore) {
+        res.push(uci)
+      }
+    }
+    return res
   })
 }
 
@@ -153,7 +180,7 @@ export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>) {
     if (before) {
       const pos = chessFromFen(after.data.fen)
       for (const child of before.children) {
-        const move = normalizeMove(pos, parseSan(pos, child.data.san))
+        const move = normalizeMove(pos, parseSan(pos, child.data.san) as NormalMove)
         if (move) {
           const pos2 = pos.clone()
           pos2.play(move)

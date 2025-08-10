@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Chess, fen, makeUci, type NormalMove, parseSquare, parseUci } from "chessops"
+  import type { DrawShape } from "chessground/draw"
+  import { Chess, fen, makeSquare, makeUci, type NormalMove, parseSquare, parseUci } from "chessops"
   import { makeFen, parseFen } from "chessops/fen"
   import { makePgn, parsePgn } from "chessops/pgn"
-  import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
+  import { makeSanAndPlay } from "chessops/san"
   import { onMount, untrack } from "svelte"
   import "./app.css"
   import Chessboard from "./components/Chessboard.svelte"
@@ -15,13 +16,14 @@
     allLegalMoves,
     chessFromFen,
     formatScore,
+    moveQuality,
     parseUciInfo,
     pvUciToSan,
     randomChoice,
     randomWeightedChoice
   } from "./utils"
 
-  let chess = Chess.default()
+  let chess = $state(Chess.default())
   let chessboard: Chessboard
   const initialFen = $derived(gameState.game.moves.data.fen ?? fen.INITIAL_FEN)
   const fenStr = $derived(gameState.currentNode.data.fen ?? initialFen)
@@ -101,6 +103,8 @@
         e.preventDefault()
         onAnalyzeClicked()
       }
+    } else if (e.key === "c") {
+      chessboard.setAutoShapes([])
     }
   }
 
@@ -140,7 +144,7 @@
       if (!positionChanging && line.startsWith("info depth") && line.includes(" pv ")) {
         const info = parseUciInfo(line)
         if (!info || !info.pv) {
-          console.error("PV missings?", line)
+          console.error("PV missing?", line)
           return
         }
         const lan = info.pv[0]
@@ -161,7 +165,6 @@
         }
       }
     } catch (error) {
-      console.log("Yep error definitely happened.", error)
       throw error
     }
   }
@@ -187,11 +190,52 @@
     gameState.currentNode = gameState.game.moves
   }
 
+  function analysisNumber(key: string, f: (x: any) => string = (x) => x) {
+    const data = Object.entries(gameState.currentNode.data.moveAnalyses)
+      .filter((a) => a[1][key] !== undefined)
+      .map((a) => a[1][key]) as number[]
+    if (data.length > 0) {
+      return f(data[0])
+    }
+  }
+
   $effect(() => {
     gameState.currentNode
     untrack(() => {
       onPositionChanged()
     })
+  })
+
+  $effect(() => {
+    let shapes: DrawShape[] = []
+
+    const topEngineUcis = gameState.currentNode.data.topEngineMovesUci
+    for (let uci of topEngineUcis) {
+      const topMove = parseUci(uci) as NormalMove
+      shapes.push({
+        orig: makeSquare(topMove.from),
+        dest: makeSquare(topMove.to),
+        brush: "paleBlue"
+      })
+    }
+
+    const topHumanUci = gameState.currentNode.data.topHumanMoveUci
+    if (topHumanUci) {
+      const topMove = parseUci(topHumanUci) as NormalMove
+      const score = gameState.currentNode.data.moveAnalyses[topHumanUci]?.score
+      const best = gameState.currentNode.data.eval
+      const shape: DrawShape = {
+        orig: makeSquare(topMove.from),
+        dest: makeSquare(topMove.to),
+        brush: "paleRed"
+      }
+      if (score !== undefined && best !== undefined) {
+        const q = moveQuality(score, best)
+        shape.label = { text: q.annotation, fill: q.color }
+      }
+      shapes.push(shape)
+    }
+    chessboard.setAutoShapes(shapes)
   })
 
   onMount(() => {
@@ -210,6 +254,13 @@
     })
 
     window.electron.ipcRenderer.on("copyFenPgn", () => {
+      const pos = chessFromFen(gameState.root.end().data.fen)
+      const winner = pos.outcome()?.winner
+      if (winner) {
+        gameState.game.headers.set("Result", winner === "white" ? "1-0" : "0-1")
+      } else {
+        gameState.game.headers.delete("Result")
+      }
       const pgn = makePgn(gameState.game)
       window.api.writeToClipboard(pgn)
     })
@@ -267,18 +318,23 @@
       chessboard?.toggleOrientation()
     })
 
-    window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
-      const entries = Object.entries(gameState.currentNode.data.moveAnalyses)
-      if (entries.length === 0 || entries[0][1].humanProbability === undefined) return
-      const moves: [string, number][] = entries.map((a) => [a[0], a[1].humanProbability])
-      const move = randomWeightedChoice(moves)
-      makeMove(parseUci(move) as NormalMove)
+    window.electron.ipcRenderer.on("playTopEngineMove", () => {
+      const moves = gameState.currentNode.data.topEngineMovesUci
+      if (moves.length > 0) makeMove(parseUci(moves[0]) as NormalMove)
     })
 
     window.electron.ipcRenderer.on("playTopHumanMove", () => {
-      const entries = Object.entries(gameState.currentNode.data.moveAnalyses)
-      if (entries.length === 0 || entries[0][1].humanProbability === undefined) return
-      const move = entries.reduce((a, b) => (a[1].humanProbability > b[1].humanProbability ? a : b))[0]
+      const move = gameState.currentNode.data.topHumanMoveUci
+      if (move) makeMove(parseUci(move) as NormalMove)
+    })
+
+    window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
+      const entries = Object.entries(gameState.currentNode.data.moveAnalyses).filter(
+        (a) => a[1].humanProbability !== undefined
+      )
+      if (entries.length === 0) return
+      const moves: [string, number][] = entries.map((a) => [a[0], a[1].humanProbability])
+      const move = randomWeightedChoice(moves)
       makeMove(parseUci(move) as NormalMove)
     })
 
@@ -335,16 +391,43 @@
     </div>
     <!-- Right -->
     <div class="flex flex-1 gap-2 flex-col max-h-[576px]">
-      <div>
+      <div class="flex items-center gap-3">
         <button class="btn" onclick={onAnalyzeClicked}>{analyzing ? "Stop" : "Analyze"}</button>
-        <span class="font-bold text-xl"
-          >{formatScore(gameState.currentNode.data.side, gameState.currentNode.data.eval)}</span
-        >
-        (Human: <Score
-          score={gameState.currentNode.data.humanEval}
-          best={gameState.currentNode.data.eval}
-          side={gameState.currentNode.data.side}
-        />)
+        {#if chess.isEnd()}
+          <div class="text-amber-200">
+            {#if chess.isCheckmate()}
+              Checkmate, {gameState.currentNode.data.turn === "w" ? "black" : "white"} wins
+            {:else if chess.isInsufficientMaterial()}
+              Insufficient material
+            {:else if chess.isStalemate()}
+              Stalemate
+            {/if}
+          </div>
+        {:else}
+          <div class="font-bold text-xl">
+            {formatScore(gameState.currentNode.data.turn, gameState.currentNode.data.eval)}
+          </div>
+          <div>
+            <span class="text-gray-500">Human:</span>
+            <Score
+              score={gameState.currentNode.data.humanEval}
+              best={gameState.currentNode.data.eval}
+              turn={gameState.currentNode.data.turn}
+            />
+          </div>
+          <div>
+            <span class="text-gray-500">Nodes:</span>
+            {analysisNumber("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
+          </div>
+          <div>
+            <span class="text-gray-500">Time:</span>
+            {analysisNumber("time", (x) => `${(x / 1000).toFixed(1)}s`)}
+          </div>
+          <div>
+            <span class="text-gray-500">N/s:</span>
+            {analysisNumber("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
+          </div>
+        {/if}
       </div>
       <div class=" flex-2/3 overflow-auto">
         <!-- Infobox -->
@@ -361,7 +444,7 @@
   <div class="flex items-center gap-x-3">
     <span>FEN</span>
     <input
-      class="w-[600px] text-xs font-mono"
+      class="w-[600px] font-mono"
       type="text"
       value={fenStr}
       onfocus={(e) => {

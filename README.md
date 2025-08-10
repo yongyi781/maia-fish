@@ -7,6 +7,14 @@ This application allows you to analyze chess positions and games with two differ
 - **Stockfish**: A powerful, traditional chess engine.
 - **Maia**: A neural network trained to emulate human play at different skill levels.
 
+## Todo
+
+- Lichess opening stats
+- Auto-analyze
+- Winrate graph
+- New app title
+- Fix: Canceling in promotion dialog
+
 ## Features
 
 - **Side-by-side analysis**: See the top moves and evaluations from both Stockfish and Maia for any given position.

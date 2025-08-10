@@ -1,22 +1,22 @@
 <script lang="ts">
   import type { HTMLAttributes } from "svelte/elements"
   import { type Score } from "../types"
-  import { formatScore, moveQualityColor } from "../utils"
+  import { formatScore, moveQuality } from "../utils"
 
   type Props = HTMLAttributes<HTMLSpanElement> & {
     score: Score
     best: Score
-    side: "w" | "b"
+    turn: "w" | "b"
     class?: string
   }
 
-  const { score, best, side, class: className = "", ...restProps }: Props = $props()
+  const { score, best, turn, class: className = "", ...restProps }: Props = $props()
 </script>
 
 <span
   class={className + " font-bold"}
-  style="color: {score === undefined ? 'gray' : moveQualityColor(score, best)}"
+  style="color: {score === undefined ? 'gray' : moveQuality(score, best)?.color}"
   {...restProps}
 >
-  {score === undefined ? "?" : formatScore(side, score)}
+  {score === undefined ? "?" : formatScore(turn, score)}
 </span>

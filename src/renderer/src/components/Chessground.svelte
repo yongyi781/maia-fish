@@ -1,206 +1,32 @@
 <script lang="ts">
-  import { run } from 'svelte/legacy';
-
   import { Chessground } from "chessground"
-  import type { Color, Drop, FEN, Key, MouchEvent, Piece, PiecesDiff } from "chessground/types"
+  import type { Drop, FEN, Key, MouchEvent, Piece, PiecesDiff } from "chessground/types"
 
+  import type { Api } from "chessground/api"
+  import type { Config } from "chessground/config"
+  import type { DrawBrush, DrawBrushes, DrawShape } from "chessground/draw"
+  import type { State } from "chessground/state"
   import { onMount } from "svelte"
 
-  /**
-   *
-   * Exported props.
-   * All exported props are reactive and can be set directly or via the config object.
-   * Cannot be bound, use callback functions via the "events" objects to monitor state.
-   *
-   * All simple-valued Chessground parameters have their own props. The others must be set via the config prop and are:
-   *     highlight, animation, movable, premovable, predroppable, draggable, selectable, events, drawable
-   *
-   * Dev note: These props would preferrably have been implemented with $$props or a preprocessor, but doing so would lose Typescript compile-time checks.
-   */
-
-  /**
-   * CSS class name applied to wrapping div. Set this to apply another
-   * stylesheet than the default.
-   * @type {string}
-   */
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-  interface Props {
-    class?: string;
-    /**
-   * Chess position in Forsyth-Edwards notation.
-   * @type {import('chessground/types').FEN | undefined}
-   */
-    fen?: FEN | undefined;
-    /**
-   * Board orientation: white or black.
-   * @type {import('chessground/types').Color | undefined}
-   */
-    orientation?: Color | undefined;
-    /**
-   * Side to play: white or black.
-   * @type {import('chessground/types').Color | undefined}
-   */
-    turnColor?: Color | undefined;
-    /**
-   * Color in check, for highlighting the square. True for the current
-   * color, or false to unset.
-   * @type {import('chessground/types').Color | boolean | undefined}
-   */
-    check?: Color | boolean | undefined;
-    /**
-   * Squares of the last move, for highlighting.
-   * @type {import('chessground/types').Key[] | undefined}
-   */
-    lastMove?: Key[] | undefined;
-    /**
-   * Square currently selected.
-   * @type {import('chessground/types').Key | undefined}
-   */
-    selected?: Key | undefined;
-    /**
-   * Draw board coordinates (a-h, 1-8).
-   * @type {boolean | undefined}
-   */
-    coordinates?: boolean | undefined;
-    /**
-   * Immediately complete castling by moving the rook after the king move.
-   * @type {boolean | undefined}
-   */
-    autoCastle?: boolean | undefined;
-    /**
-   * Don't bind events: the user will never be able to move pieces around.
-   * @type {boolean | undefined}
-   */
-    viewOnly?: boolean | undefined;
-    /**
-   * Disable the right-click context menu.
-   * @type {boolean | undefined}
-   */
-    disableContextMenu?: boolean | undefined;
-    /**
-   * Add z-index to pieces (for 3D).
-   * @type {boolean | undefined}
-   */
-    addPieceZIndex?: boolean | undefined;
-    /**
-   * Add --cg-width and --cg-height CSS vars containing the board's dimensions to this element.
-   * @type {HTMLElement | undefined}
-   */
-    addDimensionsCssVarsTo?: HTMLElement | undefined;
-    /**
-   * Block scrolling via touch dragging on the board, e.g. for coordinate training
-   * @type {boolean | undefined}
-   */
-    blockTouchScroll?: boolean | undefined;
-    /**
-   * Chessground configuration. The config prop can be used to set any
-   * config keys, and is needed to set config keys that lack own
-   * props: highlight, animation, movable, premovable, predroppable,
-   * draggable, selectable, events and drawable.
-   * https://github.com/lichess-org/chessground/blob/master/src/api.ts
-   * @type {import('chessground/config').Config}
-   */
-    config?: import("chessground/config").Config;
-  }
-
   let {
+    /**
+     * CSS class name applied to wrapping div. Set this to apply another
+     * stylesheet than the default.
+     */
     class: className = "cg-default-style",
-    fen = undefined,
-    orientation = undefined,
-    turnColor = undefined,
-    check = undefined,
-    lastMove = undefined,
-    selected = undefined,
-    coordinates = undefined,
-    autoCastle = undefined,
-    viewOnly = undefined,
-    disableContextMenu = undefined,
-    addPieceZIndex = undefined,
-    addDimensionsCssVarsTo = undefined,
-    blockTouchScroll = undefined,
-    config = $bindable({})
-  }: Props = $props();
+    brushes = undefined as { [color: string]: DrawBrush },
+    ...restProps
+  } = $props()
 
-  /**
-   *
-   *
-   *
-   */
-
-  /** @type {HTMLDivElement} */
-  let container: HTMLDivElement = $state()
-
-  /** @type {import('chessground/api').Api} */
-  let chessground: import("chessground/api").Api
-
-  onMount(async () => {
-    if (orientation !== undefined) config.orientation = orientation
-    if (fen !== undefined) config.fen = fen
-    if (turnColor !== undefined) config.turnColor = turnColor
-    if (check !== undefined) config.check = check
-    if (lastMove !== undefined) config.lastMove = lastMove
-    if (selected !== undefined) config.selected = selected
-    if (coordinates !== undefined) config.coordinates = coordinates
-    if (autoCastle !== undefined) config.autoCastle = autoCastle
-    if (viewOnly !== undefined) config.viewOnly = viewOnly
-    if (disableContextMenu !== undefined) config.disableContextMenu = disableContextMenu
-    if (addPieceZIndex !== undefined) config.addPieceZIndex = addPieceZIndex
-    if (addDimensionsCssVarsTo !== undefined) config.addDimensionsCssVarsTo = addDimensionsCssVarsTo
-    if (blockTouchScroll !== undefined) config.blockTouchScroll = blockTouchScroll
-    chessground = Chessground(container, config)
-  })
-
-  /**
-   * Set config values if component is mounted. Used for reactive props.
-   * @param {import('chessground/config').Config} config - object of key(s) and value(s) to set.
-   * @returns {void}
-   */
-  function setConfig(config: import("chessground/config").Config): void {
-    if (chessground) {
-      chessground.set(config)
-    }
-  }
-
-  /*
-   *
-   * Methods passed through to Chessground
-   *
-   */
+  let container: HTMLDivElement
+  let chessground: Api
 
   /**
    * Set config values. Alternative to using the config prop.
    * @param {import('chessground/config').Config} config - object of key(s) and value(s) to set.
    * @returns {void}
    */
-  export function set(config: import("chessground/config").Config): void {
+  export function set(config: Config): void {
     chessground.set(config)
   }
 
@@ -209,7 +35,7 @@
    * https://github.com/lichess-org/chessground/blob/master/src/state.ts
    * @returns {import('chessground/state').State} - Chessground state
    */
-  export function getState(): import("chessground/state").State {
+  export function getState(): State {
     return chessground.state
   }
 
@@ -333,7 +159,7 @@
    * @param {import('chessground/draw').DrawShape[] } shapes - Shapes to draw.
    * @returns {void}
    */
-  export function setShapes(shapes: import("chessground/draw").DrawShape[]): void {
+  export function setShapes(shapes: DrawShape[]): void {
     chessground.setShapes(shapes)
   }
 
@@ -342,7 +168,7 @@
    * @param {import('chessground/draw').DrawShape[] } shapes - Shapes to draw.
    * @returns {void}
    */
-  export function setAutoShapes(shapes: import("chessground/draw").DrawShape[]): void {
+  export function setAutoShapes(shapes: DrawShape[]): void {
     chessground.setAutoShapes(shapes)
   }
 
@@ -369,51 +195,20 @@
   export function destroy(): void {
     return chessground.destroy()
   }
-  run(() => {
-    setConfig({ fen: fen })
-  });
-  run(() => {
-    setConfig({ orientation: orientation })
-  });
-  run(() => {
-    setConfig({ turnColor: turnColor })
-  });
-  run(() => {
-    setConfig({ check: check })
-  });
-  run(() => {
-    setConfig({ lastMove: lastMove })
-  });
-  run(() => {
-    setConfig({ selected: selected })
-  });
-  run(() => {
-    setConfig({ coordinates: coordinates })
-  });
-  run(() => {
-    setConfig({ autoCastle: autoCastle })
-  });
-  run(() => {
-    setConfig({ viewOnly: viewOnly })
-  });
-  run(() => {
-    setConfig({ disableContextMenu: disableContextMenu })
-  });
-  run(() => {
-    setConfig({ addPieceZIndex: addPieceZIndex })
-  });
-  run(() => {
-    setConfig({ addDimensionsCssVarsTo: addDimensionsCssVarsTo })
-  });
-  run(() => {
-    setConfig({ blockTouchScroll: blockTouchScroll })
-  });
-  run(() => {
-    setConfig(config)
-  });
+
+  onMount(() => {
+    const config: Config = {
+      drawable: {
+        enabled: false
+      }
+    }
+    if (brushes) config.drawable.brushes = brushes as DrawBrushes
+    chessground = Chessground(container, config)
+    return chessground.destroy
+  })
 </script>
 
-<div class="cg-wrap {className}" bind:this={container}></div>
+<div {...restProps} class="cg-wrap {className}" bind:this={container}></div>
 
 <style>
   .cg-wrap {

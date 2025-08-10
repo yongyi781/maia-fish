@@ -19,7 +19,7 @@
   }
 
   function bgColor() {
-    return gameState.isMainline ? "#555577" : "#777755"
+    return gameState.isMainline ? "#444466" : "#444422"
   }
 </script>
 

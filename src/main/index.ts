@@ -187,22 +187,29 @@ app.whenReady().then(async () => {
       label: "Play",
       submenu: [
         {
-          label: "Weighted human move",
-          accelerator: "/",
+          label: "Top engine move",
+          accelerator: "F1",
           click() {
-            mainWindow.webContents.send("playWeightedHumanMove")
+            mainWindow.webContents.send("playTopEngineMove")
           }
         },
         {
           label: "Top human move",
-          accelerator: "CommandOrControl+/",
+          accelerator: "F2",
           click() {
             mainWindow.webContents.send("playTopHumanMove")
           }
         },
         {
+          label: "Weighted human move",
+          accelerator: "F3",
+          click() {
+            mainWindow.webContents.send("playWeightedHumanMove")
+          }
+        },
+        {
           label: "Random move",
-          accelerator: "Alt+/",
+          accelerator: "Ctrl+/",
           click() {
             mainWindow.webContents.send("playRandomMove")
           }

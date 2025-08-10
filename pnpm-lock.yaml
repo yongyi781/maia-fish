@@ -71,9 +71,6 @@ importers:
       svelte-check:
         specifier: ^4.3.1
         version: 4.3.1(picomatch@4.0.3)(svelte@5.38.0)(typescript@5.9.2)
-      svelte-chess:
-        specifier: ^0.11.1
-        version: 0.11.1(svelte@5.38.0)
       tailwindcss:
         specifier: ^4.1.11
         version: 4.1.11
@@ -1115,12 +1112,6 @@ packages:
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
-
-  chess.js@1.4.0:
-    resolution: {integrity: sha512-BBJgrrtKQOzFLonR0l+k64A98NLemPwNsCskwb+29bRwobUa4iTm51E1kwGPbWXAcfdDa18nad6vpPPKPWarqw==}
-
-  chessground@8.4.0:
-    resolution: {integrity: sha512-0LPdp2Ln/EzeH/T63fDO4Hn9KcSExoMOqkgz3fPjPiY1mSHDBqVuU3drbctHIdorl6hkyQC3qZPMmNHYgZjnsA==}
 
   chessground@9.2.1:
     resolution: {integrity: sha512-KIdxm0zD69e62XRwdnFB0XUNYSzn5HM3pMazRCwpfruRUowFI8y+1OAK5YSyBff29myeV1/4o5Q8T191+Irbog==}
@@ -2569,16 +2560,6 @@ packages:
       svelte: ^4.0.0 || ^5.0.0-next.0
       typescript: '>=5.0.0'
 
-  svelte-chess@0.11.1:
-    resolution: {integrity: sha512-GeYJ7mHpVfjYWZ+fIkbXtPH7FWGPXuOsqJsJPFli6RoaTJW9lm+pwASc6oQx4jAB+d/x0NJ5vDt8JprLcTq3ZA==}
-    peerDependencies:
-      svelte: ^3.54.0
-
-  svelte-chessground@2.0.3:
-    resolution: {integrity: sha512-QDEKYlDm2LZctXrSmXH7oFlItEQT3h+wAIlx6lB7bSFtoK0fCGMxEjVspLTKx7h4o776bH+qps/1hjrWaOjVNg==}
-    peerDependencies:
-      svelte: ^3.54.0
-
   svelte-eslint-parser@1.3.1:
     resolution: {integrity: sha512-0Iztj5vcOVOVkhy1pbo5uA9r+d3yaVoE5XPc9eABIWDOSJZ2mOsZ4D+t45rphWCOr0uMw3jtSG2fh2e7GvKnPg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -3998,10 +3979,6 @@ snapshots:
     dependencies:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
-
-  chess.js@1.4.0: {}
-
-  chessground@8.4.0: {}
 
   chessground@9.2.1: {}
 
@@ -5472,17 +5449,6 @@ snapshots:
       typescript: 5.9.2
     transitivePeerDependencies:
       - picomatch
-
-  svelte-chess@0.11.1(svelte@5.38.0):
-    dependencies:
-      chess.js: 1.4.0
-      svelte: 5.38.0
-      svelte-chessground: 2.0.3(svelte@5.38.0)
-
-  svelte-chessground@2.0.3(svelte@5.38.0):
-    dependencies:
-      chessground: 8.4.0
-      svelte: 5.38.0
 
   svelte-eslint-parser@1.3.1(svelte@5.38.0):
     dependencies:

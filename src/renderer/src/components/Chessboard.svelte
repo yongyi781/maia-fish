@@ -1,10 +1,12 @@
 <script lang="ts">
+  import type { DrawBrush, DrawShape } from "chessground/draw"
   import type { Key, MoveMetadata } from "chessground/types"
   import { Chess, makeSquare, type NormalMove, parseSquare, type Role } from "chessops"
   import { INITIAL_FEN, makeFen } from "chessops/fen"
   import { mount, onMount, unmount } from "svelte"
   import Chessground from "./Chessground.svelte"
   import PromotionDialog from "./PromotionDialog.svelte"
+  import { moveQualities, normalizeMove } from "../utils"
 
   let {
     moveNumber = 0,
@@ -15,6 +17,7 @@
     fen = INITIAL_FEN,
     orientation = "w",
     onmove = undefined as (move: NormalMove) => void,
+    brushes = undefined as { [color: string]: DrawBrush },
     ...restProps
   } = $props()
 
@@ -28,7 +31,13 @@
   export function load(pos: Chess, lastMove?: NormalMove) {
     const dests = new Map<Key, Key[]>()
     for (const [square, moves] of pos.allDests()) {
-      dests.set(makeSquare(square), [...moves].map(makeSquare))
+      dests.set(
+        makeSquare(square),
+        [...moves].map((dest) => {
+          const move = normalizeMove(pos, { from: square, to: dest })
+          return makeSquare(move.to)
+        })
+      )
     }
     cg.set({
       fen: makeFen(pos.toSetup()),
@@ -49,6 +58,10 @@
 
   export function toggleOrientation() {
     cg.toggleOrientation()
+  }
+
+  export function setAutoShapes(shapes: DrawShape[]) {
+    cg.setAutoShapes(shapes)
   }
 
   async function handleCgMove(orig: Key, dest: Key, metadata: MoveMetadata) {
@@ -73,8 +86,7 @@
   //   promotionVisible = false
   //   // pendingMove.promotion = piece
   //   onmove?.(pendingMove)
-  // }
-
+  // }moveQualitiesmoveQualities
   function promotionCallback(square: any) {
     return new Promise<Role>((resolve) => {
       const element = mount(PromotionDialog, {
@@ -82,7 +94,7 @@
         props: {
           square,
           color: orientation,
-          callback: (piece) => {
+          callback: (piece: Role) => {
             unmount(element)
             resolve(piece)
           }
@@ -97,6 +109,6 @@
 </script>
 
 <div class="relative" bind:this={container}>
-  <Chessground bind:this={cg} {...restProps} />
+  <Chessground bind:this={cg} {...restProps} {brushes} />
   <!-- <PromotionDialog color={promotionColor} visible={promotionVisible} onselect={handlePromotionSelect} /> -->
 </div>

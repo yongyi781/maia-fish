@@ -167,30 +167,36 @@ export function cpToWinProb(cp: number) {
   return 1 / (1 + 10 ** (-cp / 400))
 }
 
-export const moveQualityColors = {
+export const moveQualities = {
   best: {
-    color: "hsl(190 65% 65% / 0.9)",
-    threshold: 0
+    color: "hsl(190 65% 65% )",
+    threshold: 0,
+    annotation: "妙"
   },
   good: {
-    color: "hsl(120 50% 60% / 0.8)",
-    threshold: 0.05
+    color: "hsl(120 50% 60%)",
+    threshold: 0.05,
+    annotation: "✓"
   },
   inaccuracy: {
-    color: "hsl(60 50% 60% / 0.8)",
-    threshold: 0.1
+    color: "hsl(60 50% 60%)",
+    threshold: 0.1,
+    annotation: "?!"
   },
   mistake: {
-    color: "hsl(30 50% 60% / 0.8)",
-    threshold: 0.2
+    color: "hsl(30 50% 60%)",
+    threshold: 0.2,
+    annotation: "?"
   },
   blunder: {
-    color: "hsl(0 50% 60% / 0.8)",
-    threshold: 1
+    color: "hsl(0 50% 60%)",
+    threshold: 1,
+    annotation: "??"
   },
   unknown: {
-    color: "hsl(100 50% 30% / 0.8)",
-    threshold: 9001
+    color: "hsl(100 50% 30%)",
+    threshold: 9001,
+    annotation: ""
   }
 }
 
@@ -203,7 +209,7 @@ export function classifyMove(score: Score, best: Score) {
     return "blunder"
   }
   const loss = cpToWinProb(rawEval(best)) - cpToWinProb(rawEval(score))
-  for (const [k, v] of Object.entries(moveQualityColors)) {
+  for (const [k, v] of Object.entries(moveQualities)) {
     if (loss <= v.threshold) {
       return k
     }
@@ -211,16 +217,10 @@ export function classifyMove(score: Score, best: Score) {
 }
 
 /** Returns the color of a move based on its classification. */
-export function moveQualityColor(score: Score, best: Score) {
+export function moveQuality(score: Score, best: Score) {
   const c = classifyMove(score, best)
   if (c === undefined) return undefined
-  return opaquifyHSL(moveQualityColors[c].color)
-}
-
-/** Opaquifies a hsla color, removing the alpha. */
-export function opaquifyHSL(color: string) {
-  const arr = color.split(/[()\s]/)
-  return `hsl(${arr[1]} ${arr[2]} ${arr[3]})`
+  return moveQualities[c]
 }
 
 /** Returns a random element from an array, weighted by its weight. */

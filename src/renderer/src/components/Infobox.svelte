@@ -21,13 +21,13 @@
   }
 
   const sortedAnalyses = $derived.by(() => {
-    // Union the top 5 engine moves and top 5 human moves
+    // Union the top 3 engine moves and all human moves >= 5% probability
     const entries = Object.entries(gameState.currentNode.data.moveAnalyses)
     const topEngineMoves = entries
       .filter(([, a]) => a.score !== undefined)
       .sort(([, a], [, b]) => f(b, a))
-      .slice(0, 5)
-    const topHumanMoves = entries.filter(([, a]) => a.humanProbability >= 0.005)
+      .slice(0, 3)
+    const topHumanMoves = entries.filter(([, a]) => a.humanProbability >= 0.05)
     const topMoves = [...new Set([...topEngineMoves, ...topHumanMoves])]
     return topMoves.sort(([, a], [, b]) => cmp(b, a))
   })
@@ -42,7 +42,7 @@
           class="text-right min-w-12"
           score={a.score}
           best={gameState.currentNode.data.eval}
-          side={gameState.currentNode.data.side}
+          turn={gameState.currentNode.data.turn}
         />
         <div class="text-right min-w-12" style="color: {probColor(a.humanProbability)}">
           {a.humanProbability === undefined ? "" : (a.humanProbability * 100).toFixed()}%
@@ -51,7 +51,7 @@
         <div class="relative flex-1 flex items-center">
           <div class="absolute max-w-full text-ellipsis text-nowrap overflow-hidden">
             {#each a.pv as move, i}
-              <span style="color: {(i + (gameState.currentNode.data.side === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}"
+              <span style="color: {(i + (gameState.currentNode.data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}"
                 >{move}</span
               >&nbsp;
             {/each}
