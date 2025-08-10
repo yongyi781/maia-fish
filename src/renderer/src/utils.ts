@@ -136,6 +136,7 @@ export function chessFromFen(fen: string) {
 
 /** Represents a score in white's perspective. */
 export function scoreWhitePov(turn: "w" | "b", score: Score) {
+  if (score === undefined) return score
   return turn === "b" ? { ...score, value: -score.value } : score
 }
 
@@ -181,7 +182,7 @@ interface MoveQuality {
 
 export const moveQualities: { [key: string]: MoveQuality } = {
   best: {
-    color: "hsl(190 65% 65% )",
+    color: "hsl(190 65% 65%)",
     threshold: 0,
     annotation: "妙"
   },

@@ -1,18 +1,19 @@
 <script lang="ts">
   import type { DrawShape } from "chessground/draw"
   import type { Key } from "chessground/types"
-  import { Chess, fen, makeSquare, makeUci, type NormalMove, parseSquare, parseUci } from "chessops"
+  import { Chess, fen, makeSquare, makeUci, type NormalMove, parseUci } from "chessops"
   import { makeFen, parseFen } from "chessops/fen"
   import { makePgn, parsePgn } from "chessops/pgn"
   import { makeSanAndPlay } from "chessops/san"
   import { onMount, untrack } from "svelte"
   import "./app.css"
   import Chessboard from "./components/Chessboard.svelte"
+  import EvalBar from "./components/EvalBar.svelte"
+  import EvalGraph from "./components/EvalGraph.svelte"
   import Infobox from "./components/Infobox.svelte"
   import MoveListNode from "./components/MoveListNode.svelte"
   import Score from "./components/Score.svelte"
-  import EvalBar from "./components/EvalBar.svelte"
-  import { fromPgnNode, gameState, Node, NodeData, rawEval } from "./game.svelte"
+  import { fromPgnNode, gameState, Node, NodeData } from "./game.svelte"
   import { preprocess, processOutputs } from "./maia-utils"
   import {
     allLegalMoves,
@@ -480,7 +481,7 @@
     <!-- Right -->
     <div class="flex flex-1 gap-2 flex-col max-h-[576px]">
       <button
-        class="flex p-1 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {analyzing
+        class="flex p-1 h-16 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {analyzing
           ? 'bg-green-950 outline-green-900'
           : ' outline-zinc-700'}"
         onclick={handleAnalyzeClicked}
@@ -556,5 +557,5 @@
       }}
     />
   </div>
-  <div class="p-2 text-center"></div>
+  <div class="h-full"><EvalGraph /></div>
 </div>

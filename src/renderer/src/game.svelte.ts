@@ -218,7 +218,7 @@ export class GameState {
   /** Nodes in the mainline. */
   mainline = $derived([...this.root.mainlineNodes()])
   /** Whether the currently selected node is in the mainline. */
-  isMainline = $derived(this.mainline.includes(this.currentNode))
+  isMainline = $derived(this.currentNode === this.root || this.mainline.includes(this.currentNode))
 
   /** The root node. */
   get root() {
