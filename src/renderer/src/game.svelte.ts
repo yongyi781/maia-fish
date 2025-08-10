@@ -52,7 +52,7 @@ export class NodeData implements pgn.PgnNodeData {
   /** Side to move. */
   turn: "w" | "b"
   /** Legal move analyses: key is LAN, value iseval, depth, Maia policy, ... */
-  moveAnalyses: Record<string, MoveAnalysis> = $state({})
+  moveAnalyses: [string, MoveAnalysis][] = $state([])
   /** The parent node. */
   parent?: Node
   startingComments?: string[]
@@ -66,40 +66,40 @@ export class NodeData implements pgn.PgnNodeData {
     }
     this.turn = this.fen.split(" ")[1] as "w" | "b"
     const pos = chessFromFen(this.fen)
-    const pairs = allLegalMoves(pos).map((move) => {
+    this.moveAnalyses = allLegalMoves(pos).map((move): [string, MoveAnalysis] => {
       return [makeUci(move), { pv: [makeSan(pos, move)] }]
     })
-    this.moveAnalyses = Object.fromEntries(pairs)
   }
 
   /** Current position's evaluation. */
   eval: Score = $derived(
-    Object.values(this.moveAnalyses).reduce((max, ma) => (rawEval(ma.score) > rawEval(max.score) ? ma : max), {
-      score: { type: "cp", value: -Infinity } as Score
-    }).score
+    this.moveAnalyses.length === 0
+      ? undefined
+      : this.moveAnalyses.reduce((max, ma) => (rawEval(ma[1].score) > rawEval(max[1].score) ? ma : max))[1]?.score
   )
 
   /** Current position's human evaluation, in centipawns. */
-  humanEval: Score = $derived({
-    type: "cp",
-    value: Object.entries(this.moveAnalyses).reduce(
-      (acc, [_, ma]) => acc + rawEvalClamped(ma.score) * (ma.humanProbability ?? 0),
-      0
-    )
-  })
+  humanEval: Score = $derived(
+    this.moveAnalyses.length === 0
+      ? undefined
+      : {
+          type: "cp",
+          value: this.moveAnalyses.reduce(
+            (acc, [, ma]) => acc + rawEvalClamped(ma.score) * (ma.humanProbability ?? 0),
+            0
+          )
+        }
+  )
 
   /** Gets the top human move according to the analysis. */
-  topHumanMoveUci: string | undefined = $derived.by(() => {
-    const entries = Object.entries(gameState.currentNode.data.moveAnalyses).filter(
-      (a) => a[1].humanProbability !== undefined
-    )
-    if (entries.length === 0) return undefined
-    return entries.reduce((a, b) => (a[1].humanProbability > b[1].humanProbability ? a : b))[0]
+  topHumanMoveUci: string = $derived.by(() => {
+    const entries = this.moveAnalyses.filter((a) => a[1].humanProbability !== undefined)
+    if (entries.length > 0) return entries.reduce((a, b) => (a[1].humanProbability > b[1].humanProbability ? a : b))[0]
   })
 
   /** Gets the top engine move (multiple if tied) according to the analysis. */
   topEngineMovesUci: string[] = $derived.by(() => {
-    const entries = Object.entries(gameState.currentNode.data.moveAnalyses).filter((a) => a[1].score !== undefined)
+    const entries = this.moveAnalyses.filter((a) => a[1].score !== undefined)
     if (entries.length === 0) return []
     let res = []
     let bestScore = -Infinity

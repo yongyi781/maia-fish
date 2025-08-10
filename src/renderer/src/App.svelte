@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DrawShape } from "chessground/draw"
+  import type { Key } from "chessground/types"
   import { Chess, fen, makeSquare, makeUci, type NormalMove, parseSquare, parseUci } from "chessops"
   import { makeFen, parseFen } from "chessops/fen"
   import { makePgn, parsePgn } from "chessops/pgn"
@@ -10,12 +11,14 @@
   import Infobox from "./components/Infobox.svelte"
   import MoveListNode from "./components/MoveListNode.svelte"
   import Score from "./components/Score.svelte"
-  import { fromPgnNode, gameState, Node } from "./game.svelte"
+  import EvalBar from "./components/EvalBar.svelte"
+  import { fromPgnNode, gameState, Node, NodeData, rawEval } from "./game.svelte"
   import { preprocess, processOutputs } from "./maia-utils"
   import {
     allLegalMoves,
     chessFromFen,
     formatScore,
+    moveQualities,
     moveQuality,
     parseUciInfo,
     pvUciToSan,
@@ -24,16 +27,21 @@
   } from "./utils"
 
   let chess = $state(Chess.default())
-  let chessboard: Chessboard
+  let chessboard: Chessboard = $state()
+  let evalBar: EvalBar
   const initialFen = $derived(gameState.game.moves.data.fen ?? fen.INITIAL_FEN)
   const fenStr = $derived(gameState.currentNode.data.fen ?? initialFen)
   /** Whether we are analyzing. */
   let analyzing = $state(false)
+  let orientation: "white" | "black" = $state("white")
   /** The engine's actual status. */
   let engineStatus: "stopped" | "running" = "stopped"
   /** Whether we are currently changing the position. */
   let positionChanging = false
+  /** A timeout for debouncing engine commands. */
+  // let pendingEngineTimeout: NodeJS.Timeout
 
+  /** Updates the engine position. */
   function updateEnginePosition() {
     let shouldStartEngine = false
     if (analyzing) {
@@ -63,8 +71,8 @@
     }
     chessboard?.load(chess, lastMove)
     // Populate Maia evaluations
-    const analyses = Object.values(gameState.currentNode.data.moveAnalyses)
-    if (analyses.length === 0 || analyses[0].humanProbability === undefined) staticEval()
+    const analyses = gameState.currentNode.data.moveAnalyses
+    if (analyses.length === 0 || analyses[0][1].humanProbability === undefined) staticEval()
     // Change engine position
     updateEnginePosition()
   }
@@ -101,14 +109,19 @@
       const ae = document.activeElement
       if (ae.tagName !== "INPUT" && ae.tagName !== "TEXTAREA" && !ae["isContentEditable"]) {
         e.preventDefault()
-        onAnalyzeClicked()
+        handleAnalyzeClicked()
       }
     } else if (e.key === "c") {
-      chessboard.setAutoShapes([])
+      chessboard.setAutoShapes([
+        {
+          orig: "d5",
+          label: { text: "?!", fill: "red" }
+        }
+      ])
     }
   }
 
-  async function onAnalyzeClicked() {
+  async function handleAnalyzeClicked() {
     if (analyzing) {
       analyzing = false
       window.api.sendEngineCommand("stop")
@@ -119,9 +132,7 @@
     }
   }
 
-  async function fetchLichessStats() {
-    let url: string = ""
-  }
+  async function fetchLichessStats() {}
 
   /** Evaluates the position with Maia. */
   async function staticEval() {
@@ -133,7 +144,7 @@
       eloOppoCategory
     })
     const outputs = processOutputs(fenStr, logits_maia, logits_value, legalMoves)
-    for (let [lan, a] of Object.entries(currentNode.data.moveAnalyses)) {
+    for (let [lan, a] of currentNode.data.moveAnalyses) {
       a.humanProbability = outputs.policy[lan]
     }
   }
@@ -148,13 +159,19 @@
           return
         }
         const lan = info.pv[0]
-        // Convert the PV to SAN.
-        info.pv = pvUciToSan(chess, info.pv)
-        Object.assign(gameState.currentNode.data.moveAnalyses[lan], info)
+        const entry = gameState.currentNode.data.moveAnalyses.find((m) => m[0] === lan)
+        // Write only if depth >= max(6, current depth)
+        if (entry && info.depth >= (entry[1].depth || 6)) {
+          // Convert the PV to SAN.
+          info.pv = pvUciToSan(chess, info.pv)
+          Object.assign(entry[1], info)
+        }
       } else if (line.startsWith("bestmove")) {
         // "bestmove" = engine stopped.
         if (analyzing) {
           if (positionChanging) {
+            // Debounce
+            // clearTimeout(pendingEngineTimeout)
             positionChanging = false
             window.api.sendEngineCommand("go")
             engineStatus = "running"
@@ -188,15 +205,43 @@
       moves: new Node({ fen: fen })
     }
     gameState.currentNode = gameState.game.moves
+    evalBar.reset()
   }
 
   function analysisNumber(key: string, f: (x: any) => string = (x) => x) {
-    const data = Object.entries(gameState.currentNode.data.moveAnalyses)
+    const data = gameState.currentNode.data.moveAnalyses
       .filter((a) => a[1][key] !== undefined)
       .map((a) => a[1][key]) as number[]
     if (data.length > 0) {
       return f(data[0])
     }
+  }
+
+  function title() {
+    const appName = "Nibbler2"
+    let detail = ""
+    const white = gameState.game.headers.get("White")
+    const black = gameState.game.headers.get("Black")
+    if (white && black) detail = `${white} vs ${black}`
+    if (analyzing) detail += " (Analyzing...)"
+    return detail.length === 0 ? appName : `${appName} - ${detail}`
+  }
+
+  /**
+   * Checks there exists a brilliant move. The requirements are:
+   * - The position is not super-losing (i.e. cp >= -500)
+   * - Every human move with ≥ 3% probability is an inaccuracy or worse.
+   */
+  function existsBrilliantMove(data: NodeData, humanProbThreshold = 0.03) {
+    const best = data.eval
+    // If the position is super-losing (cp < -500) then there can't be a brilliant move.
+    if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
+    const hasObviousGoodMove = data.moveAnalyses.some(
+      ([, a]) =>
+        a.humanProbability >= humanProbThreshold &&
+        (a.score === undefined || moveQuality(a.score, best).threshold < 0.1)
+    )
+    return !hasObviousGoodMove
   }
 
   $effect(() => {
@@ -206,24 +251,52 @@
     })
   })
 
+  /** Compute shapes */
   $effect(() => {
-    let shapes: DrawShape[] = []
+    const currentData = gameState.currentNode.data
+    const shapes: DrawShape[] = []
 
-    const topEngineUcis = gameState.currentNode.data.topEngineMovesUci
+    // Individual move quality
+    const parent = currentData.parent
+    if (parent && parent.data.eval) {
+      const a = parent.data.moveAnalyses.find((m) => m[0] === currentData.lan)
+      if (a && a[1].score) {
+        const q = moveQuality(a[1].score, parent.data.eval)
+        if (q.threshold === 0) {
+          if (existsBrilliantMove(parent.data)) {
+            shapes.push({
+              orig: currentData.lan.slice(2, 4) as Key,
+              label: { text: "!!", fill: q.color }
+            })
+          }
+        } else if (q.threshold >= 0.1 && q.threshold < 9000) {
+          shapes.push({
+            orig: currentData.lan.slice(2, 4) as Key,
+            label: { text: q.annotation, fill: q.color }
+          })
+        }
+      }
+    }
+
+    const topEngineUcis = currentData.topEngineMovesUci
     for (let uci of topEngineUcis) {
       const topMove = parseUci(uci) as NormalMove
-      shapes.push({
+      const shape: DrawShape = {
         orig: makeSquare(topMove.from),
         dest: makeSquare(topMove.to),
         brush: "paleBlue"
-      })
+      }
+      if (existsBrilliantMove(currentData)) {
+        shape.label = { text: "!!", fill: moveQualities.best.color }
+      }
+      shapes.push(shape)
     }
 
-    const topHumanUci = gameState.currentNode.data.topHumanMoveUci
+    const topHumanUci = currentData.topHumanMoveUci
     if (topHumanUci) {
       const topMove = parseUci(topHumanUci) as NormalMove
-      const score = gameState.currentNode.data.moveAnalyses[topHumanUci]?.score
-      const best = gameState.currentNode.data.eval
+      const score = currentData.moveAnalyses.find((m) => m[0] === topHumanUci)[1].score
+      const best = currentData.eval
       const shape: DrawShape = {
         orig: makeSquare(topMove.from),
         dest: makeSquare(topMove.to),
@@ -231,11 +304,18 @@
       }
       if (score !== undefined && best !== undefined) {
         const q = moveQuality(score, best)
-        shape.label = { text: q.annotation, fill: q.color }
+        if (q.threshold >= 0.1 && q.threshold < 9000) {
+          shape.label = { text: q.annotation, fill: q.color }
+        }
       }
       shapes.push(shape)
     }
+
     chessboard.setAutoShapes(shapes)
+  })
+
+  $effect(() => {
+    evalBar.update(gameState.currentNode.data.turn, gameState.currentNode.data.eval)
   })
 
   onMount(() => {
@@ -251,6 +331,8 @@
         moves: new Node()
       }
       gameState.currentNode = gameState.game.moves
+      evalBar.reset()
+      window.api.sendEngineCommand("stop\nucinewgame")
     })
 
     window.electron.ipcRenderer.on("copyFenPgn", () => {
@@ -278,6 +360,7 @@
         }
         gameState.currentNode = gameState.game.moves
       }
+      window.api.sendEngineCommand("stop\nucinewgame")
     })
 
     window.electron.ipcRenderer.on("gotoRoot", () => {
@@ -316,6 +399,7 @@
 
     window.electron.ipcRenderer.on("flipBoard", () => {
       chessboard?.toggleOrientation()
+      orientation = chessboard.getState().orientation
     })
 
     window.electron.ipcRenderer.on("playTopEngineMove", () => {
@@ -329,9 +413,7 @@
     })
 
     window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
-      const entries = Object.entries(gameState.currentNode.data.moveAnalyses).filter(
-        (a) => a[1].humanProbability !== undefined
-      )
+      const entries = gameState.currentNode.data.moveAnalyses.filter((a) => a[1].humanProbability !== undefined)
       if (entries.length === 0) return
       const moves: [string, number][] = entries.map((a) => [a[0], a[1].humanProbability])
       const move = randomWeightedChoice(moves)
@@ -343,7 +425,11 @@
     })
 
     window.electron.ipcRenderer.on("stockfish-output", (_, output: string) => {
-      for (let line of output.split("\n")) processEngineOutput(line)
+      try {
+        for (let line of output.split("\n")) processEngineOutput(line)
+      } catch (error) {
+        console.error(error)
+      }
     })
 
     return () => {
@@ -371,9 +457,11 @@
   }}
 />
 
+<svelte:head><title>{title()}</title></svelte:head>
+
 <!-- Main layout -->
-<div class="h-screen flex flex-col gap-1 p-1">
-  <div class="flex gap-2">
+<div class="h-screen flex flex-col p-1">
+  <div class="flex gap-1">
     <!-- Left -->
     <div
       class=" w-[576px]"
@@ -386,15 +474,19 @@
         }
       }}
     >
-      <!-- Chessboard -->
       <Chessboard bind:this={chessboard} onmove={makeMove} />
     </div>
+    <EvalBar bind:this={evalBar} {orientation} />
     <!-- Right -->
     <div class="flex flex-1 gap-2 flex-col max-h-[576px]">
-      <div class="flex items-center gap-3">
-        <button class="btn" onclick={onAnalyzeClicked}>{analyzing ? "Stop" : "Analyze"}</button>
+      <button
+        class="flex p-1 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {analyzing
+          ? 'bg-green-950 outline-green-900'
+          : ' outline-zinc-700'}"
+        onclick={handleAnalyzeClicked}
+      >
         {#if chess.isEnd()}
-          <div class="text-amber-200">
+          <div class="font-bold text-3xl w-full text-amber-200">
             {#if chess.isCheckmate()}
               Checkmate, {gameState.currentNode.data.turn === "w" ? "black" : "white"} wins
             {:else if chess.isInsufficientMaterial()}
@@ -403,8 +495,10 @@
               Stalemate
             {/if}
           </div>
+        {:else if !analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
+          <div class="font-bold text-3xl w-full">Analyze</div>
         {:else}
-          <div class="font-bold text-xl">
+          <div class="font-bold text-3xl text-nowrap w-24 text-center">
             {formatScore(gameState.currentNode.data.turn, gameState.currentNode.data.eval)}
           </div>
           <div>
@@ -427,8 +521,12 @@
             <span class="text-gray-500">N/s:</span>
             {analysisNumber("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
           </div>
+          <div>
+            <span class="text-gray-500">Hash:</span>
+            {analysisNumber("hashfull", (x) => `${(x / 10).toFixed(1)}%`)}
+          </div>
         {/if}
-      </div>
+      </button>
       <div class=" flex-2/3 overflow-auto">
         <!-- Infobox -->
         <Infobox />
@@ -441,10 +539,10 @@
       </div>
     </div>
   </div>
-  <div class="flex items-center gap-x-3">
+  <div class="flex items-center gap-x-3 p-2">
     <span>FEN</span>
     <input
-      class="w-[600px] font-mono"
+      class="w-[500px] font-mono"
       type="text"
       value={fenStr}
       onfocus={(e) => {
@@ -458,13 +556,5 @@
       }}
     />
   </div>
-  <div class="p-2 text-center">
-    <button
-      class="btn"
-      onclick={() => {
-        const f = chess.isLegal({ from: parseSquare("e8"), to: parseSquare("g8") })
-        console.log(f)
-      }}>Debug</button
-    >
-  </div>
+  <div class="p-2 text-center"></div>
 </div>

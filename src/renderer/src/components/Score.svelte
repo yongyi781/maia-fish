@@ -13,10 +13,12 @@
   const { score, best, turn, class: className = "", ...restProps }: Props = $props()
 </script>
 
-<span
-  class={className + " font-bold"}
-  style="color: {score === undefined ? 'gray' : moveQuality(score, best)?.color}"
-  {...restProps}
->
-  {score === undefined ? "?" : formatScore(turn, score)}
-</span>
+{#if isFinite(score?.value) && isFinite(best?.value)}
+  <span
+    class={className + " font-bold"}
+    style="color: {score === undefined ? 'gray' : moveQuality(score, best)?.color}"
+    {...restProps}
+  >
+    {score === undefined ? "?" : formatScore(turn, score)}
+  </span>
+{/if}

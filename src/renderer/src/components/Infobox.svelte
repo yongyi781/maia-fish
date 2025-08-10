@@ -21,20 +21,20 @@
   }
 
   const sortedAnalyses = $derived.by(() => {
-    // Union the top 3 engine moves and all human moves >= 5% probability
-    const entries = Object.entries(gameState.currentNode.data.moveAnalyses)
+    // Union the top 3 engine moves and all human moves >= 3% probability
+    const entries = gameState.currentNode.data.moveAnalyses
     const topEngineMoves = entries
       .filter(([, a]) => a.score !== undefined)
       .sort(([, a], [, b]) => f(b, a))
       .slice(0, 3)
-    const topHumanMoves = entries.filter(([, a]) => a.humanProbability >= 0.05)
+    const topHumanMoves = entries.filter(([, a]) => a.humanProbability >= 0.03)
     const topMoves = [...new Set([...topEngineMoves, ...topHumanMoves])]
     return topMoves.sort(([, a], [, b]) => cmp(b, a))
   })
 </script>
 
 <div>
-  <label><input type="checkbox" bind:checked={humanSort} /> Sort human</label>
+  <div class="p-2"><label><input type="checkbox" bind:checked={humanSort} /> Sort human</label></div>
   <div>
     {#each sortedAnalyses as [, a]}
       <div class="flex gap-2 items-center">

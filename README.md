@@ -9,9 +9,11 @@ This application allows you to analyze chess positions and games with two differ
 
 ## Todo
 
+- Winrate graph
+  - Dots for treacherous positions, also dots for mistakes/blunders
 - Lichess opening stats
 - Auto-analyze
-- Winrate graph
+  - Figure out how to do this
 - New app title
 - Fix: Canceling in promotion dialog
 

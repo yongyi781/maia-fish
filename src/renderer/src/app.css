@@ -1,9 +1,1 @@
 @import "tailwindcss";
-
-@layer base {
-  .btn {
-    @apply rounded-md py-1.5 px-3 transition-colors duration-75 border
-         bg-slate-200 border-slate-300 hover:bg-slate-100 active:bg-slate-300 active:text-gray-600
-         dark:bg-slate-700 dark:border-slate-700 dark:hover:bg-slate-600 dark:active:bg-slate-800 dark:active:text-gray-300;
-  }
-}

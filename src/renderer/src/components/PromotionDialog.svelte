@@ -1,14 +1,16 @@
 <script lang="ts">
+  import type { Color } from "chessops"
+
   interface Props {
     square: any
-    color?: string
+    color?: Color
     callback: any
     class?: any
   }
 
-  let { square, color = "w", callback, class: className = void 0 }: Props = $props()
+  let { square, color = "white", callback, class: className = void 0 }: Props = $props()
 
-  const marginLeft = (100 / 8) * (color === "w" ? squareToFileNumber(square) : 7 - squareToFileNumber(square))
+  const marginLeft = (100 / 8) * (color === "white" ? squareToFileNumber(square) : 7 - squareToFileNumber(square))
   const white = square.charAt(1) === "8"
   const black = !white
   const pieces = ["queen", "knight", "rook", "bishop"]
@@ -25,7 +27,7 @@
 
 <div class="dialog {className}">
   {#each pieces as piece, i}
-    {@const putPiecesFromTop = (white && color === "w") || (black && color === "b")}
+    {@const putPiecesFromTop = (white && color === "white") || (black && color === "black")}
     {@const marginTop = putPiecesFromTop ? i * 12.5 : 100 - 12.5 * (i + 1)}
     <div class="square" style="margin-left:{marginLeft}%;margin-top:{marginTop}%;">
       <div

@@ -134,18 +134,24 @@ export function chessFromFen(fen: string) {
   return Chess.fromSetup(parseFen(fen).unwrap()).unwrap()
 }
 
+/** Represents a score in white's perspective. */
+export function scoreWhitePov(turn: "w" | "b", score: Score) {
+  return turn === "b" ? { ...score, value: -score.value } : score
+}
+
 /** Formats a score. */
-export function formatScore(side: "w" | "b", score: Score) {
+export function formatScore(turn: "w" | "b", score: Score) {
   if (!score) return ""
   if (!isFinite(score.value)) return ""
+  const w = scoreWhitePov(turn, score)
   switch (score.type) {
     case "cp": {
-      const value = side === "b" ? -score.value / 100 : score.value / 100
-      return value === 0 ? "0.00" : value < 0 ? value.toFixed(2) : `+${value.toFixed(2)}`
+      const value = w.value / 100
+      return value === 0 ? "0.00" : value < 0 ? `−${(-value).toFixed(2)}` : `+${value.toFixed(2)}`
     }
     case "mate": {
-      const value = side === "b" ? -score.value : score.value
-      return value < 0 ? `-#${-value}` : value > 0 ? `#${value}` : ""
+      const value = w.value
+      return value < 0 ? `−#${-value}` : value > 0 ? `#${value}` : ""
     }
   }
 }
@@ -167,7 +173,13 @@ export function cpToWinProb(cp: number) {
   return 1 / (1 + 10 ** (-cp / 400))
 }
 
-export const moveQualities = {
+interface MoveQuality {
+  color: string
+  threshold: number
+  annotation: string
+}
+
+export const moveQualities: { [key: string]: MoveQuality } = {
   best: {
     color: "hsl(190 65% 65% )",
     threshold: 0,
@@ -219,7 +231,6 @@ export function classifyMove(score: Score, best: Score) {
 /** Returns the color of a move based on its classification. */
 export function moveQuality(score: Score, best: Score) {
   const c = classifyMove(score, best)
-  if (c === undefined) return undefined
   return moveQualities[c]
 }
 

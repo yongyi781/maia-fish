@@ -2,27 +2,20 @@
   import type { DrawBrush, DrawShape } from "chessground/draw"
   import type { Key, MoveMetadata } from "chessground/types"
   import { Chess, makeSquare, type NormalMove, parseSquare, type Role } from "chessops"
-  import { INITIAL_FEN, makeFen } from "chessops/fen"
+  import { makeFen } from "chessops/fen"
   import { mount, onMount, unmount } from "svelte"
+  import { normalizeMove } from "../utils"
   import Chessground from "./Chessground.svelte"
   import PromotionDialog from "./PromotionDialog.svelte"
-  import { moveQualities, normalizeMove } from "../utils"
 
   let {
-    moveNumber = 0,
-    turn = "w",
-    inCheck = false,
-    history = [],
-    isGameOver = false,
-    fen = INITIAL_FEN,
-    orientation = "w",
     onmove = undefined as (move: NormalMove) => void,
     brushes = undefined as { [color: string]: DrawBrush },
     ...restProps
   } = $props()
 
-  let cg: Chessground
   let container: HTMLDivElement
+  let cg: Chessground
   // let promotionVisible = $state(false)
   // let promotionColor: "w" | "b" = $state("w")
   // let pendingMove: NormalMove | undefined
@@ -56,6 +49,12 @@
     })
   }
 
+  /** Gets the current Chessground state. */
+  export function getState() {
+    return cg.getState()
+  }
+
+  /** Toggles the orientation of the board. */
   export function toggleOrientation() {
     cg.toggleOrientation()
   }
@@ -86,14 +85,14 @@
   //   promotionVisible = false
   //   // pendingMove.promotion = piece
   //   onmove?.(pendingMove)
-  // }moveQualitiesmoveQualities
+  // }
   function promotionCallback(square: any) {
     return new Promise<Role>((resolve) => {
       const element = mount(PromotionDialog, {
         target: container,
         props: {
           square,
-          color: orientation,
+          color: cg.getState().orientation,
           callback: (piece: Role) => {
             unmount(element)
             resolve(piece)
