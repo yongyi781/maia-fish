@@ -19,7 +19,8 @@ export function randomChoice<T>(arr: T[]) {
 }
 
 /** Normalizes a move: e.g. castling is e1g1 instead of e1h1. */
-function normalizeMove(pos: Chess, move: NormalMove) {
+export function normalizeMove(pos: Chess, move: NormalMove | undefined) {
+  if (!move || !move["from"]) return move
   const side = castlingSide(pos, move)
   if (!side) return move
   const delta = side === "a" ? -2 : 2
@@ -31,9 +32,9 @@ function normalizeMove(pos: Chess, move: NormalMove) {
 }
 
 /** Returns all legal moves from a position. */
-export function allLegalMoves(pos: Chess): Move[] {
+export function allLegalMoves(pos: Chess): NormalMove[] {
   const promotionRoles: Role[] = ["queen", "knight", "rook", "bishop"]
-  let res: Move[] = []
+  let res: NormalMove[] = []
   for (const [from, dests] of pos.allDests()) {
     const promotions: Array<Role | undefined> =
       squareRank(from) === (pos.turn === "white" ? 6 : 1) && pos.board.pawn.has(from) ? promotionRoles : [undefined]
@@ -212,6 +213,7 @@ export function classifyMove(score: Score, best: Score) {
 /** Returns the color of a move based on its classification. */
 export function moveQualityColor(score: Score, best: Score) {
   const c = classifyMove(score, best)
+  if (c === undefined) return undefined
   return opaquifyHSL(moveQualityColors[c].color)
 }
 

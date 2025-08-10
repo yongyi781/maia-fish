@@ -1,8 +1,8 @@
-import { Chess, fen, makeUci, pgn } from "chessops"
-import { parseFen } from "chessops/fen"
-import { makeSan } from "chessops/san"
-import { allLegalMoves } from "./utils"
+import { fen, makeUci, pgn } from "chessops"
+import { makeFen } from "chessops/fen"
+import { makeSan, parseSan } from "chessops/san"
 import { Score } from "./types"
+import { allLegalMoves, chessFromFen, normalizeMove } from "./utils"
 
 /** Converts an `Score` to a raw evaluation, for comparison purposes. */
 export function rawEval(e: Score | undefined) {
@@ -15,19 +15,27 @@ export function rawEval(e: Score | undefined) {
   }
 }
 
+/** Converts an `Score` to a raw evaluation, for comparison purposes. Clamps values, defaulting to an upper bound of 8
+ *  pawns and a lower bound of -8 pawns. */
+export function rawEvalClamped(e: Score | undefined, upperBound = 800) {
+  if (!e) return -Infinity
+  switch (e.type) {
+    case "cp":
+      return Math.max(-upperBound, Math.min(e.value, upperBound))
+    case "mate":
+      return e.value === 0 ? -upperBound : Math.sign(e.value) * (upperBound - Math.abs(e.value))
+  }
+}
+
 /** Analysis associated with each legal move. */
-export class MoveAnalysis {
+export interface MoveAnalysis {
   /** List of moves in the PV, in SAN format. */
   pv: string[]
-  depth?: number = $state()
-  score?: Score = $state()
-  humanProbability?: number = $state()
+  depth?: number
+  score?: Score
+  humanProbability?: number
   /** Number of nodes searched in this analysis. */
-  nodes?: number = $state()
-
-  constructor(data: Partial<MoveAnalysis>) {
-    Object.assign(this, data)
-  }
+  nodes?: number
 }
 
 /**
@@ -56,9 +64,9 @@ export class NodeData implements pgn.PgnNodeData {
       this.fen = fen.INITIAL_FEN
     }
     this.side = this.fen.split(" ")[1] as "w" | "b"
-    const pos = Chess.fromSetup(parseFen(this.fen).unwrap()).unwrap()
+    const pos = chessFromFen(this.fen)
     const pairs = allLegalMoves(pos).map((move) => {
-      return [makeUci(move), new MoveAnalysis({ pv: [makeSan(pos, move)] })]
+      return [makeUci(move), { pv: [makeSan(pos, move)] }]
     })
     this.moveAnalyses = Object.fromEntries(pairs)
   }
@@ -74,7 +82,7 @@ export class NodeData implements pgn.PgnNodeData {
   humanEval: Score = $derived({
     type: "cp",
     value: Object.entries(this.moveAnalyses).reduce(
-      (acc, [_, ma]) => acc + rawEval(ma.score) * (ma.humanProbability ?? 0),
+      (acc, [_, ma]) => acc + rawEvalClamped(ma.score) * (ma.humanProbability ?? 0),
       0
     )
   })
@@ -83,7 +91,7 @@ export class NodeData implements pgn.PgnNodeData {
 /** Reactive version of `pgn.Node`. */
 export class Node {
   children: Node[] = $state([])
-  data: NodeData = $state()
+  data: NodeData
 
   constructor(data?: Partial<NodeData>) {
     this.data = new NodeData(data)
@@ -131,6 +139,41 @@ export class Node {
   }
 }
 
+/** Converts a `pgn.Node` to a `Node`. */
+export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>) {
+  const res = new Node()
+  const stack = [
+    {
+      before: pgnNode,
+      after: res
+    }
+  ]
+  while (stack.length > 0) {
+    const { before, after } = stack.pop()
+    if (before) {
+      const pos = chessFromFen(after.data.fen)
+      for (const child of before.children) {
+        const move = normalizeMove(pos, parseSan(pos, child.data.san))
+        if (move) {
+          const pos2 = pos.clone()
+          pos2.play(move)
+          const newChild = new Node({
+            ...child.data,
+            fen: makeFen(pos2.toSetup()),
+            lan: makeUci(move),
+            parent: after
+          })
+          after.children.push(newChild)
+          stack.push({ before: child, after: newChild })
+        } else {
+          console.warn(`Illegal move ignored: ${child.data.san}`)
+        }
+      }
+    }
+  }
+  return res
+}
+
 export class GameState {
   /** The game tree, containing all data such as evals. */
   game = $state({
@@ -145,6 +188,10 @@ export class GameState {
   currentNode = $state(new Node({}))
   /** The line containing the currently selected node. */
   currentLine = $derived([...this.currentNode.end().pathToRoot()])
+  /** Nodes in the mainline. */
+  mainline = $derived([...this.root.mainlineNodes()])
+  /** Whether the currently selected node is in the mainline. */
+  isMainline = $derived(this.mainline.includes(this.currentNode))
 
   /** The root node. */
   get root() {

@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { Chess, fen, parseSquare, parseUci } from "chessops"
-  import { parseFen } from "chessops/fen"
-  import { makeSan, parseSan } from "chessops/san"
+  import { Chess, fen, makeUci, type NormalMove, parseSquare, parseUci } from "chessops"
+  import { makeFen, parseFen } from "chessops/fen"
+  import { makePgn, parsePgn } from "chessops/pgn"
+  import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
   import { onMount, untrack } from "svelte"
-  import { Chess as ChessUI } from "svelte-chess"
-  import type { Move } from "svelte-chess/dist/api"
   import "./app.css"
+  import Chessboard from "./components/Chessboard.svelte"
   import Infobox from "./components/Infobox.svelte"
   import MoveListNode from "./components/MoveListNode.svelte"
-  import { gameState, Node } from "./game.svelte"
+  import Score from "./components/Score.svelte"
+  import { fromPgnNode, gameState, Node } from "./game.svelte"
   import { preprocess, processOutputs } from "./maia-utils"
   import {
     allLegalMoves,
@@ -21,7 +22,7 @@
   } from "./utils"
 
   let chess = Chess.default()
-  let chessUI: ChessUI
+  let chessboard: Chessboard
   const initialFen = $derived(gameState.game.moves.data.fen ?? fen.INITIAL_FEN)
   const fenStr = $derived(gameState.currentNode.data.fen ?? initialFen)
   /** Whether we are analyzing. */
@@ -31,11 +32,7 @@
   /** Whether we are currently changing the position. */
   let positionChanging = false
 
-  function onPositionChanged() {
-    chess = chessFromFen(gameState.currentNode.data.fen)
-    chessUI?.load(gameState.currentNode.data.fen)
-    const analyses = Object.values(gameState.currentNode.data.moveAnalyses)
-    if (analyses.length === 0 || analyses[0].humanProbability === undefined) staticEval()
+  function updateEnginePosition() {
     let shouldStartEngine = false
     if (analyzing) {
       positionChanging = true
@@ -56,21 +53,40 @@
     }
   }
 
-  function onMove(e: CustomEvent<Move>) {
-    chess.play(parseSan(chess, e.detail.san))
+  function onPositionChanged() {
+    chess = chessFromFen(gameState.currentNode.data.fen)
+    let lastMove: NormalMove | undefined
+    if (gameState.currentNode.data.lan) {
+      lastMove = parseUci(gameState.currentNode.data.lan) as NormalMove
+    }
+    chessboard?.load(chess, lastMove)
+    // Populate Maia evaluations
+    const analyses = Object.values(gameState.currentNode.data.moveAnalyses)
+    if (analyses.length === 0 || analyses[0].humanProbability === undefined) staticEval()
+    // Change engine position
+    updateEnginePosition()
+  }
 
+  /** Performs a move. */
+  function makeMove(m: NormalMove) {
+    const san = makeSanAndPlay(chess, m)
+    if (!san) {
+      console.error("Invalid SAN in makeMove")
+      return
+    }
+    const lan = makeUci(m)
     let exists = false
     for (let c of gameState.currentNode.children)
-      if (c.data.san === e.detail.san) {
+      if (c.data.san === san) {
         gameState.currentNode = c
         exists = true
         break
       }
     if (!exists) {
       const child = new Node({
-        fen: e.detail.after,
-        lan: e.detail.lan,
-        san: e.detail.san,
+        fen: makeFen(chess.toSetup()),
+        lan: lan,
+        san: san,
         parent: gameState.currentNode
       })
       gameState.currentNode.children.push(child)
@@ -88,15 +104,6 @@
     }
   }
 
-  function onWheel(e: WheelEvent) {
-    e.preventDefault()
-    if (e.deltaY > 0) {
-      goForward()
-    } else if (e.deltaY < 0) {
-      goBack()
-    }
-  }
-
   async function onAnalyzeClicked() {
     if (analyzing) {
       analyzing = false
@@ -106,6 +113,10 @@
       window.api.sendEngineCommand("go")
       engineStatus = "running"
     }
+  }
+
+  async function fetchLichessStats() {
+    let url: string = ""
   }
 
   /** Evaluates the position with Maia. */
@@ -128,8 +139,8 @@
     try {
       if (!positionChanging && line.startsWith("info depth") && line.includes(" pv ")) {
         const info = parseUciInfo(line)
-        if (!info.pv) {
-          console.error("PV missing?", line)
+        if (!info || !info.pv) {
+          console.error("PV missings?", line)
           return
         }
         const lan = info.pv[0]
@@ -150,12 +161,13 @@
         }
       }
     } catch (error) {
-      console.error(error)
+      console.log("Yep error definitely happened.", error)
+      throw error
     }
   }
 
   function goForward() {
-    if (gameState.currentNode.children.length > 0) chessUI.move(gameState.currentNode.children[0].data.san)
+    if (gameState.currentNode.children.length > 0) gameState.currentNode = gameState.currentNode.children[0]
   }
 
   function goBack() {
@@ -197,20 +209,23 @@
       gameState.currentNode = gameState.game.moves
     })
 
+    window.electron.ipcRenderer.on("copyFenPgn", () => {
+      const pgn = makePgn(gameState.game)
+      window.api.writeToClipboard(pgn)
+    })
+
     window.electron.ipcRenderer.on("pasteFenPgn", (_, [text]: string[]) => {
-      console.debug(text)
       const setup = parseFen(text)
       if (setup.isOk) {
         loadFen(text)
       } else {
-        const pgn = text.match(/^\[(.*?)\]\s*([^\[]*)$/s)
-        if (pgn) {
-          const [_, headers, moves] = pgn
-          console.debug("Headers:", headers)
-          console.debug("Moves:", moves)
-        } else {
-          console.error("Invalid FEN or PGN")
+        const pgns = parsePgn(text)
+        if (pgns.length < 0) throw new Error("Invalid PGN")
+        gameState.game = {
+          headers: pgns[0].headers,
+          moves: fromPgnNode(pgns[0].moves)
         }
+        gameState.currentNode = gameState.game.moves
       }
     })
 
@@ -249,7 +264,7 @@
     })
 
     window.electron.ipcRenderer.on("flipBoard", () => {
-      chessUI.toggleOrientation()
+      chessboard?.toggleOrientation()
     })
 
     window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
@@ -257,21 +272,21 @@
       if (entries.length === 0 || entries[0][1].humanProbability === undefined) return
       const moves: [string, number][] = entries.map((a) => [a[0], a[1].humanProbability])
       const move = randomWeightedChoice(moves)
-      chessUI.move(makeSan(chess, parseUci(move)))
+      makeMove(parseUci(move) as NormalMove)
     })
 
     window.electron.ipcRenderer.on("playTopHumanMove", () => {
       const entries = Object.entries(gameState.currentNode.data.moveAnalyses)
       if (entries.length === 0 || entries[0][1].humanProbability === undefined) return
       const move = entries.reduce((a, b) => (a[1].humanProbability > b[1].humanProbability ? a : b))[0]
-      chessUI.move(makeSan(chess, parseUci(move)))
+      makeMove(parseUci(move) as NormalMove)
     })
 
     window.electron.ipcRenderer.on("playRandomMove", () => {
-      chessUI.move(makeSan(chess, randomChoice(allLegalMoves(chess))))
+      makeMove(randomChoice(allLegalMoves(chess)))
     })
 
-    window.api.onOutput((output: string) => {
+    window.electron.ipcRenderer.on("stockfish-output", (_, output: string) => {
       for (let line of output.split("\n")) processEngineOutput(line)
     })
 
@@ -287,6 +302,7 @@
       window.electron.ipcRenderer.removeAllListeners("playWeightedHumanMove")
       window.electron.ipcRenderer.removeAllListeners("playTopHumanMove")
       window.electron.ipcRenderer.removeAllListeners("playRandomMove")
+      window.electron.ipcRenderer.removeAllListeners("stockfish-output")
     }
   })
 </script>
@@ -303,9 +319,19 @@
 <div class="h-screen flex flex-col gap-1 p-1">
   <div class="flex gap-2">
     <!-- Left -->
-    <div class=" w-[576px]" onwheel={onWheel}>
+    <div
+      class=" w-[576px]"
+      onwheel={(e) => {
+        e.preventDefault()
+        if (e.deltaY > 0) {
+          goForward()
+        } else if (e.deltaY < 0) {
+          goBack()
+        }
+      }}
+    >
       <!-- Chessboard -->
-      <ChessUI bind:this={chessUI} on:move={onMove} />
+      <Chessboard bind:this={chessboard} onmove={makeMove} />
     </div>
     <!-- Right -->
     <div class="flex flex-1 gap-2 flex-col max-h-[576px]">
@@ -314,7 +340,11 @@
         <span class="font-bold text-xl"
           >{formatScore(gameState.currentNode.data.side, gameState.currentNode.data.eval)}</span
         >
-        (Human: {formatScore(gameState.currentNode.data.side, gameState.currentNode.data.humanEval)})
+        (Human: <Score
+          score={gameState.currentNode.data.humanEval}
+          best={gameState.currentNode.data.eval}
+          side={gameState.currentNode.data.side}
+        />)
       </div>
       <div class=" flex-2/3 overflow-auto">
         <!-- Infobox -->

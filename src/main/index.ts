@@ -71,7 +71,7 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.on("stockfish-command", (_, command) => {
-    console.debug("stockfish-command", command)
+    console.log("SF command:", command)
     if (stockfishProcess && stockfishProcess.stdin.writable) stockfishProcess.stdin.write(command + "\n")
   })
 
@@ -107,6 +107,14 @@ app.whenReady().then(async () => {
         { role: "cut" },
         { role: "copy" },
         { role: "paste" },
+        { type: "separator" },
+        {
+          label: "Copy FEN/PGN",
+          accelerator: "Ctrl+Shift+C",
+          click() {
+            mainWindow.webContents.send("copyFenPgn")
+          }
+        },
         {
           label: "Paste FEN/PGN",
           accelerator: "Ctrl+Shift+V",

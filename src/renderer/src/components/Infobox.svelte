@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { gameState, MoveAnalysis, rawEval } from "../game.svelte"
-  import { formatScore, moveQualityColor } from "../utils"
+  import { gameState, type MoveAnalysis, rawEval } from "../game.svelte"
+  import Score from "./Score.svelte"
 
   let humanSort = $state(false)
 
@@ -23,7 +23,10 @@
   const sortedAnalyses = $derived.by(() => {
     // Union the top 5 engine moves and top 5 human moves
     const entries = Object.entries(gameState.currentNode.data.moveAnalyses)
-    const topEngineMoves = entries.sort(([, a], [, b]) => f(b, a)).slice(0, 5)
+    const topEngineMoves = entries
+      .filter(([, a]) => a.score !== undefined)
+      .sort(([, a], [, b]) => f(b, a))
+      .slice(0, 5)
     const topHumanMoves = entries.filter(([, a]) => a.humanProbability >= 0.005)
     const topMoves = [...new Set([...topEngineMoves, ...topHumanMoves])]
     return topMoves.sort(([, a], [, b]) => cmp(b, a))
@@ -35,14 +38,12 @@
   <div>
     {#each sortedAnalyses as [, a]}
       <div class="flex gap-2 items-center">
-        {#if a.score !== undefined}
-          <div
-            class="font-bold text-right min-w-12"
-            style="color: {moveQualityColor(a.score, gameState.currentNode.data.eval)}"
-          >
-            {formatScore(gameState.currentNode.data.side, a.score)}
-          </div>
-        {/if}
+        <Score
+          class="text-right min-w-12"
+          score={a.score}
+          best={gameState.currentNode.data.eval}
+          side={gameState.currentNode.data.side}
+        />
         <div class="text-right min-w-12" style="color: {probColor(a.humanProbability)}">
           {a.humanProbability === undefined ? "" : (a.humanProbability * 100).toFixed()}%
         </div>

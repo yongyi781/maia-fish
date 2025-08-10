@@ -1,48 +1,40 @@
 <script lang="ts">
-  import { gameState, Node, type NodeData } from "../game.svelte"
+  import { onMount, tick } from "svelte"
+  import { Node } from "../game.svelte"
+  import MoveListItem from "./MoveListItem.svelte"
   import Self from "./MoveListNode.svelte"
 
   interface Props {
     ply: number
     node: Node
-    firstInVariation?: boolean
   }
 
-  const { ply, node, firstInVariation }: Props = $props()
+  const { ply, node }: Props = $props()
+  let showChildren = $state(false)
 
-  function setCurrentNode() {
-    if (gameState.currentNode !== node) gameState.currentNode = node
-  }
-
-  function inCurrentLine() {
-    return gameState.currentLine.includes(node)
-  }
+  onMount(async () => {
+    await tick()
+    showChildren = true
+  })
 </script>
 
-{#if !node.isRoot()}
-  <button
-    class="px-1 font-bold hover:bg-[#555577] {node === gameState.currentNode
-      ? 'bg-[#333355] outline-1 outline-[#6cccee]'
-      : ''} {inCurrentLine() ? '' : 'text-gray-400 dark:text-gray-600'}"
-    onmousedown={setCurrentNode}
-    onclick={setCurrentNode}
-  >
-    {#if ply % 2 == 1}
-      <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{(ply + 1) / 2}.</span>
-    {:else if firstInVariation}
-      <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{ply / 2}...</span>
-    {/if}
-    {node.data.san}</button
-  >
-{/if}
+<!-- Layout: first child head, other children heads + recurse, recurse into first child -->
 {#if node.children.length > 0}
-  {#each node.children as child, i}
-    {#if i == 0}
+  <MoveListItem ply={ply + 1} node={node.children[0]} />
+  {#if node.children.length > 1}
+    {#each node.children as child, i}
+      {#if i > 0}
+        <span class="text-gray-500">(</span>
+        <MoveListItem ply={ply + 1} node={child} firstInVariation />
+        <Self ply={ply + 1} node={child} />
+        <span class="text-gray-500">)&nbsp;</span>
+      {/if}
+    {/each}
+  {/if}
+  {#if showChildren}
+    <!-- No idea why but this is fast while while just using node.children[0] is very slow. -->
+    {#each node.children.slice(0, 1) as child}
       <Self ply={ply + 1} node={child} />
-    {:else}
-      <span class="text-gray-400 dark:text-gray-600">(</span><Self ply={ply + 1} node={child} firstInVariation /><span
-        class="text-gray-500">)</span
-      >
-    {/if}
-  {/each}
+    {/each}
+  {/if}
 {/if}
