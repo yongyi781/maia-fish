@@ -149,8 +149,7 @@ export function classifyMove(score: Score, best: Score) {
 
 /** Returns the color of a move based on its classification. */
 export function moveQuality(score: Score, best: Score) {
-  const c = classifyMove(score, best)
-  return moveQualities[c]
+  return moveQualities[classifyMove(score, best)]
 }
 
 /** Returns a random element from an array, weighted by its weight. */

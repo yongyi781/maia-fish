@@ -106,22 +106,7 @@ app.whenReady().then(async () => {
         { type: "separator" },
         { role: "cut" },
         { role: "copy" },
-        { role: "paste" },
-        { type: "separator" },
-        {
-          label: "Copy FEN/PGN",
-          accelerator: "Ctrl+Shift+C",
-          click() {
-            mainWindow.webContents.send("copyFenPgn")
-          }
-        },
-        {
-          label: "Paste FEN/PGN",
-          accelerator: "Ctrl+Shift+V",
-          click() {
-            mainWindow.webContents.send("pasteFenPgn", [clipboard.readText()])
-          }
-        }
+        { role: "paste" }
       ]
     },
     {
@@ -139,20 +124,6 @@ app.whenReady().then(async () => {
           accelerator: "End",
           click() {
             mainWindow.webContents.send("gotoEnd")
-          }
-        },
-        {
-          label: "Back",
-          accelerator: "Left",
-          click() {
-            mainWindow.webContents.send("goBack")
-          }
-        },
-        {
-          label: "Forward",
-          accelerator: "Right",
-          click() {
-            mainWindow.webContents.send("goForward")
           }
         },
         {

@@ -154,12 +154,12 @@ export class Engine {
       if (!this.positionChanging && line.startsWith("info depth") && line.includes(" pv ")) {
         const info = parseUciInfo(line)
         const lan = info.pv[0]
-        const entry = data.moveAnalyses.find((m) => m[0] === lan)
-        // Write only if depth >= max(6, current depth)
-        if (entry && info.depth >= (entry[1].depth || 6)) {
+        const entry = data.moveAnalyses.find((m) => m[0] === lan)?.[1]
+
+        if (entry && (!entry.depth || info.depth >= entry.depth)) {
           // Convert the PV to SAN.
           info.pv = pvUciToSan(chessFromFen(data.fen), info.pv)
-          Object.assign(entry[1], info)
+          Object.assign(entry, info)
         }
       } else if (line.startsWith("bestmove")) {
         // "bestmove" = engine stopped.

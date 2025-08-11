@@ -9,7 +9,6 @@ This application allows you to analyze chess positions and games with two differ
 
 ## Todo
 
-- Dots on eval graph for treacherous positions
 - Auto-analyze
   - Figure out how to do this
 - New app title

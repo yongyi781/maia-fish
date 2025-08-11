@@ -40,7 +40,7 @@ export interface MoveAnalysis {
   nodes?: number
   nps?: number
   /** Timestamp of the last update. For throttling. */
-  lastUpdate?: number
+  lastUpdate?: DOMHighResTimeStamp
 }
 
 export function humanProbability(a: MoveAnalysis) {
@@ -87,7 +87,9 @@ export class NodeData implements pgn.PgnNodeData {
   eval: Score = $derived(
     this.moveAnalyses.length === 0
       ? undefined
-      : this.moveAnalyses.reduce((max, ma) => (rawEval(ma[1].score) > rawEval(max[1].score) ? ma : max))[1]?.score
+      : this.moveAnalyses.reduce((max, ma) =>
+          ma !== undefined && rawEval(ma[1].score) > rawEval(max[1].score) ? ma : max
+        )[1]?.score
   )
 
   /** Current position's human evaluation, in centipawns. */

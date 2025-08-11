@@ -64,9 +64,17 @@
 
   function handleKeyDown(e: KeyboardEvent) {
     if (isTextFocused()) return
-    if (e.key === " ") {
-      e.preventDefault()
-      handleAnalyzeClicked()
+    switch (e.key) {
+      case " ":
+        e.preventDefault()
+        handleAnalyzeClicked()
+        break
+      case "ArrowLeft":
+        goBack()
+        break
+      case "ArrowRight":
+        goForward()
+        break
     }
   }
 
@@ -147,6 +155,21 @@
     }
     engine.analyzing = false
     engine.newGame()
+  }
+
+  /** Copies the PGN to the clipboard. */
+  function copyPgnToClipboard(e: any) {
+    if (isTextFocused()) return
+    e.preventDefault()
+    const pos = chessFromFen(gameState.root.end().data.fen)
+    const winner = pos.outcome()?.winner
+    if (winner) {
+      gameState.game.headers.set("Result", winner === "white" ? "1-0" : "0-1")
+    } else {
+      gameState.game.headers.delete("Result")
+    }
+    const pgn = makePgn(gameState.game)
+    e.clipboardData.setData("text/plain", pgn)
   }
 
   /** Main position changed handler. */
@@ -248,22 +271,6 @@
       engine.newGame()
     })
 
-    window.electron.ipcRenderer.on("copyFenPgn", () => {
-      const pos = chessFromFen(gameState.root.end().data.fen)
-      const winner = pos.outcome()?.winner
-      if (winner) {
-        gameState.game.headers.set("Result", winner === "white" ? "1-0" : "0-1")
-      } else {
-        gameState.game.headers.delete("Result")
-      }
-      const pgn = makePgn(gameState.game)
-      window.api.writeToClipboard(pgn)
-    })
-
-    window.electron.ipcRenderer.on("pasteFenPgn", (_, [text]: string[]) => {
-      loadFenOrPgn(text)
-    })
-
     window.electron.ipcRenderer.on("gotoRoot", () => {
       gameState.currentNode = gameState.game.moves
     })
@@ -350,6 +357,15 @@
     if (file) {
       e.preventDefault()
       loadFenOrPgn(await file.text())
+    }
+  }}
+  oncopy={copyPgnToClipboard}
+  onpaste={async (e) => {
+    if (isTextFocused()) return
+    const text = e.clipboardData?.getData("text/plain")
+    if (text) {
+      e.preventDefault()
+      loadFenOrPgn(text)
     }
   }}
   onbeforeunload={() => {

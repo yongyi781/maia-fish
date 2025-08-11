@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { gameState } from "../game.svelte"
-  import { chessFromFen, cpToWinProb, moveQualities, scoreWhitePov } from "../utils"
+  import { chessFromFen, classifyMove, cpToWinProb, moveQualities, moveQuality, scoreWhitePov } from "../utils"
 
   const { class: className = "", ...restProps } = $props()
 
@@ -12,21 +12,38 @@
   const mainlineSolid = "#8cf"
   const variationColor = "#ff8c"
   const variationSolid = "#ff8"
+  const statusBarHeight = 20
+  let dragging = false
+
+  function mainHeight() {
+    return canvas.height - statusBarHeight
+  }
 
   function getDenom() {
     return Math.max(40, gameState.currentLine.length) - 1
   }
-  let dragging = false
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // Median (0 cp)
-    ctx.strokeStyle = "grey"
+    ctx.strokeStyle = "#333"
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(0, Math.round(canvas.height / 2) + 0.5)
-    ctx.lineTo(canvas.width, Math.round(canvas.height / 2) + 0.5)
+    ctx.moveTo(0, Math.round(mainHeight() / 2) + 0.5)
+    ctx.lineTo(canvas.width, Math.round(mainHeight() / 2) + 0.5)
+    ctx.stroke()
+
+    // Baseline and top line
+    ctx.strokeStyle = "#888"
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, Math.round(mainHeight()) + 0.5)
+    ctx.lineTo(canvas.width, Math.round(mainHeight()) + 0.5)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(0, 0.5)
+    ctx.lineTo(canvas.width, 0.5)
     ctx.stroke()
 
     ctx.fillStyle = "white"
@@ -40,16 +57,18 @@
     ctx.beginPath()
     for (let i = 0, j = currentLine.length - 1; j >= 0; ++i, --j) {
       const l = currentLine[j]
+      const lEval = l.data.eval
+      const lHumanEval = l.data.humanEval
       if (l === gameState.currentNode) indexCurrentMove = i
-      let winProb = 0.5
       const outcome = chessFromFen(l.data.fen).outcome()
+      let winProb = 0.5
       let markerFill: string
-      let markerStroke: string
+      let markerStroke = "white"
       if (outcome) {
         markerFill = outcome.winner ?? "grey"
         winProb = outcome.winner === "white" ? 1 : outcome.winner === "black" ? 0 : 0.5
       } else {
-        const e = scoreWhitePov(l.data.turn, l.data.eval)
+        const e = scoreWhitePov(l.data.turn, lEval)
         if (!e) {
           prevWinProb = undefined
           continue
@@ -57,25 +76,58 @@
         winProb = e.type === "mate" ? (e.value >= 0 ? 1 : 0) : cpToWinProb(e.value)
       }
       const x = (i / denom) * (canvas.width - 5)
-      const y = 5 + (1 - winProb) * (canvas.height - 10)
+      const y = 5 + (1 - winProb) * (mainHeight() - 10)
       ctx.lineTo(x + 0.5, y + 0.5)
-      if (prevWinProb !== undefined) {
+
+      // Outcome/mistake/blunder markers
+      if (outcome) {
+        markers.push(
+          {
+            fill: markerFill,
+            stroke: markerStroke,
+            radius: 7,
+            x,
+            y
+          },
+          {
+            fill: markerFill,
+            stroke: markerStroke,
+            radius: 5,
+            x,
+            y: canvas.height - statusBarHeight / 2
+          }
+        )
+      } else if (prevWinProb !== undefined) {
         const delta = Math.abs(winProb - prevWinProb)
         if (delta > moveQualities.mistake.threshold) {
           markerFill = moveQualities.blunder.color
           markerStroke = "pink"
         } else if (delta > moveQualities.inaccuracy.threshold) {
           markerFill = moveQualities.mistake.color
-          markerStroke = "#ec8"
+          markerStroke = "#fc8"
         }
         if (markerFill) {
           markers.push({
             fill: markerFill,
             stroke: markerStroke,
+            radius: 7,
             x,
             y
           })
         }
+      }
+
+      // Human evaluation
+      if (lEval && lHumanEval && lHumanEval.value) {
+        const c = classifyMove(lHumanEval, lEval)
+        const q = c === "best" ? moveQualities.good : moveQualities[c]
+        markers.push({
+          fill: q.color,
+          stroke: q.color,
+          radius: 4,
+          x,
+          y: canvas.height - statusBarHeight / 2
+        })
       }
       prevWinProb = winProb
     }
@@ -83,7 +135,7 @@
 
     for (const marker of markers) {
       ctx.beginPath()
-      ctx.arc(marker.x + 0.5, marker.y, 5, 0, 2 * Math.PI)
+      ctx.arc(marker.x + 0.5, marker.y, marker.radius, 0, 2 * Math.PI)
       ctx.fillStyle = marker.fill
       ctx.fill()
       ctx.strokeStyle = marker.stroke ?? "white"
