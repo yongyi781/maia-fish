@@ -1,16 +1,16 @@
 import { electronApp, is, optimizer } from "@electron-toolkit/utils"
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import { join } from "path"
 import icon from "../../resources/icon.ico?asset"
 import maia_rapid from "../../resources/maia_rapid.onnx?asset"
-import { AppConfig, loadConfig, saveConfig } from "./config"
+import { loadConfig, saveConfig } from "./config"
 
 let mainWindow: BrowserWindow
 let stockfishProcess: ChildProcessWithoutNullStreams
 let maiaModel: InferenceSession
-let config: AppConfig
+let engineOutputTimeout: NodeJS.Timeout
 
 function createWindow(): void {
   // Create the browser window.
@@ -27,6 +27,11 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow.show()
+  })
+
+  mainWindow.on("closed", () => {
+    clearInterval(engineOutputTimeout)
+    stockfishProcess?.kill()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -59,10 +64,35 @@ app.whenReady().then(async () => {
   })
 
   // IPC
-  ipcMain.handle("config:get", () => config)
+  ipcMain.handle("config:get", () => loadConfig())
 
   ipcMain.handle("config:set", (_, newConfig) => {
     saveConfig(newConfig)
+  })
+
+  ipcMain.on("engine:start", () => {
+    if (stockfishProcess) stockfishProcess.kill()
+    if (engineOutputTimeout) clearInterval(engineOutputTimeout)
+    stockfishProcess = spawn(config.stockfishPath)
+    let chunks: string[] = []
+    // 100 fps
+    engineOutputTimeout = setInterval(() => {
+      if (chunks.length > 0) {
+        mainWindow.webContents.send("engine-output", chunks)
+        chunks = []
+      }
+    }, 10)
+    stockfishProcess.stdout.on("data", (data: Buffer) => {
+      chunks.push(...data.toString().split("\n"))
+    })
+    stockfishProcess.stdin.write(`
+uci
+isready
+ucinewgame
+setoption name Threads value 14
+setoption name Hash value 1024
+setoption name MultiPV value 256
+`)
   })
 
   ipcMain.handle("engine:choose", async () => {
@@ -92,6 +122,10 @@ app.whenReady().then(async () => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+
+  const config = loadConfig()
+  console.log("Config: ", config)
+
   const menu = Menu.buildFromTemplate([
     {
       label: "File",
@@ -127,8 +161,39 @@ app.whenReady().then(async () => {
           }
         },
         {
+          label: "Previous variation",
+          accelerator: "Up",
+          click() {
+            mainWindow.webContents.send("prevVariation")
+          }
+        },
+        {
+          label: "Next variation",
+          accelerator: "Down",
+          click() {
+            mainWindow.webContents.send("nextVariation")
+          }
+        },
+        { type: "separator" },
+        {
+          label: "Return to mainline",
+          accelerator: "M",
+          click() {
+            mainWindow.webContents.send("returnToMainline")
+          }
+        },
+        {
+          label: "Promote to mainline",
+          accelerator: "CommandOrControl+Up",
+          click() {
+            mainWindow.webContents.send("promoteToMainline")
+          }
+        },
+        { type: "separator" },
+        {
           label: "Delete node",
           accelerator: "Backspace",
+          registerAccelerator: false,
           click() {
             mainWindow.webContents.send("deleteNode")
           }
@@ -162,13 +227,6 @@ app.whenReady().then(async () => {
           accelerator: "Ctrl+.",
           click() {
             mainWindow.webContents.send("forgetAnalysis")
-          }
-        },
-        {
-          label: "Forget all analysis",
-          accelerator: "Ctrl+Shift+.",
-          click() {
-            mainWindow.webContents.send("forgetAllAnalysis")
           }
         }
       ]
@@ -212,23 +270,6 @@ app.whenReady().then(async () => {
     }
   ])
   Menu.setApplicationMenu(menu)
-
-  config = loadConfig()
-  console.log("Config: ", config)
-
-  if (stockfishProcess) stockfishProcess.kill()
-  stockfishProcess = spawn(config.stockfishPath)
-  stockfishProcess.stdout.on("data", (data: Buffer) => {
-    mainWindow.webContents.send("engine-output", data.toString())
-  })
-  stockfishProcess.stdin.write(`
-uci
-isready
-ucinewgame
-setoption name Threads value 14
-setoption name Hash value 1024
-setoption name MultiPV value 256
-`)
   maiaModel = await InferenceSession.create(maia_rapid)
 })
 

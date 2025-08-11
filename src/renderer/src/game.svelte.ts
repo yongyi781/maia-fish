@@ -64,6 +64,8 @@ export class NodeData implements pgn.PgnNodeData {
   turn: "w" | "b"
   /** Legal move analyses: key is LAN, value iseval, depth, Maia policy, ... */
   moveAnalyses: [string, MoveAnalysis][] = $state([])
+  /** Mapping from LAN to index in `moveAnalyses`. */
+  lanToIndex = new Map<string, number>()
   /** The parent node. */
   parent?: Node
   startingComments?: string[]
@@ -129,14 +131,24 @@ export class NodeData implements pgn.PgnNodeData {
   })
 
   resetAnalysis() {
-    this.moveAnalyses = allLegalMoves(this.pos).map((move): [string, MoveAnalysis] => {
-      return [makeUci(move), { pv: [makeSan(this.pos, move)] }]
-    })
+    if (this.moveAnalyses.length === 0) {
+      this.moveAnalyses = allLegalMoves(this.pos).map((move): [string, MoveAnalysis] => {
+        return [makeUci(move), { pv: [makeSan(this.pos, move)] }]
+      })
+      for (let i = 0; i < this.moveAnalyses.length; i++) {
+        this.lanToIndex.set(this.moveAnalyses[i][0], i)
+      }
+    } else {
+      for (const [move, a] of this.moveAnalyses) {
+        a.depth = a.lastUpdate = a.nodes = a.nps = a.score = undefined
+        a.pv = [makeSan(this.pos, parseUci(move))]
+      }
+    }
   }
 }
 
 /** Reactive version of `pgn.Node`. */
-export class Node {
+export class Node implements pgn.Node<NodeData> {
   children: Node[] = $state([])
   data: NodeData
 
@@ -158,12 +170,14 @@ export class Node {
   }
 
   /** Returns the path from the root to this node. */
-  *pathToRoot(): Iterable<Node> {
+  pathToRoot(): Node[] {
     let node: Node = this
-    while (node instanceof Node) {
-      yield node
+    let res = []
+    while (node) {
+      res.push(node)
       node = node.data.parent
     }
+    return res
   }
 
   /** Returns whether this node is the root. */
@@ -173,7 +187,7 @@ export class Node {
 
   /** Returns the moves from the root to this node. */
   movesFromRootUci(): string[] {
-    const path = [...this.pathToRoot()]
+    const path = this.pathToRoot()
     path.reverse()
     path.shift()
     return path.map((n) => n.data.lan)
@@ -197,6 +211,10 @@ export class Node {
       return
     const url = makeLichessUrl(data.fen)
     const response = await fetch(url)
+    if (!response.ok) {
+      console.warn("Failed to fetch lichess stats", response)
+      return
+    }
     const json = await response.json()
     const totalGames = json.moves.reduce((a: number, b: any) => a + b.white + b.draws + b.black, 0)
     if (totalGames < config.value.lichessThreshold) return
@@ -259,7 +277,7 @@ export class GameState {
   /** The currently selected node. */
   currentNode = $state(new Node({}))
   /** The line containing the currently selected node. */
-  currentLine = $derived([...this.currentNode.end().pathToRoot()])
+  currentLine = $derived(this.currentNode.end().pathToRoot())
   /** Nodes in the mainline. */
   mainline = $derived([...this.root.mainlineNodes()])
   /** Whether the currently selected node is in the mainline. */
@@ -272,13 +290,14 @@ export class GameState {
 
   /** Performs a move. */
   makeMove(m: NormalMove) {
+    const node = gameState.currentNode
     const san = makeSanAndPlay(this.chess, m)
     if (!san) {
       throw new Error("Invalid SAN in makeMove")
     }
     const lan = makeUci(m)
     let exists = false
-    for (let c of gameState.currentNode.children)
+    for (let c of node.children)
       if (c.data.san === san) {
         gameState.currentNode = c
         exists = true
@@ -289,9 +308,9 @@ export class GameState {
         fen: makeFen(this.chess.toSetup()),
         lan: lan,
         san: san,
-        parent: gameState.currentNode
+        parent: node
       })
-      gameState.currentNode.children.push(child)
+      node.children.push(child)
       gameState.currentNode = child
     }
   }

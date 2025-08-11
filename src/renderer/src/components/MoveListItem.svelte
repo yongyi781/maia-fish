@@ -4,14 +4,15 @@
   interface Props {
     ply: number
     node: Node
+    currentNode: Node
     firstInVariation?: boolean
   }
 
-  const { ply, node, firstInVariation }: Props = $props()
+  let { ply, node, currentNode = $bindable(), firstInVariation }: Props = $props()
   const inCurrentLine = $derived(gameState.currentLine.includes(node))
 
   function setCurrentNode() {
-    if (gameState.currentNode !== node) gameState.currentNode = node
+    if (currentNode !== node) currentNode = node
   }
 
   function outlineColor() {
@@ -24,9 +25,9 @@
 </script>
 
 <button
-  class="px-1 font-bold hover:bg-[#555577] {node === gameState.currentNode && 'outline-1'} {!inCurrentLine &&
+  class="px-1 font-bold hover:bg-[#555577] {node === currentNode && 'outline-1'} {!inCurrentLine &&
     'text-gray-400 dark:text-gray-600'}"
-  style:background-color={node === gameState.currentNode ? bgColor() : ""}
+  style:background-color={node === currentNode ? bgColor() : ""}
   style:outline-color={outlineColor()}
   onmousedown={setCurrentNode}
   onclick={setCurrentNode}

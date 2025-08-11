@@ -12,6 +12,7 @@
   import Infobox from "./components/Infobox.svelte"
   import MoveListNode from "./components/MoveListNode.svelte"
   import Score from "./components/Score.svelte"
+  import { config } from "./config.svelte"
   import { Engine } from "./engine.svelte"
   import { fromPgnNode, gameState, humanProbability, Node } from "./game.svelte"
   import { preprocess, processOutputs } from "./maia-utils"
@@ -58,6 +59,14 @@
     }
   }
 
+  function deleteCurrentNode() {
+    const parent = gameState.currentNode.data.parent
+    if (parent) {
+      parent.children = parent.children.filter((c) => c !== gameState.currentNode)
+      gameState.currentNode = parent
+    }
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
     if (isTextFocused()) return
     switch (e.key) {
@@ -70,6 +79,19 @@
         break
       case "ArrowRight":
         goForward()
+        break
+      case "Backspace":
+      case "Delete":
+        deleteCurrentNode()
+        break
+      case "h":
+        config.value.humanSort = !config.value.humanSort
+        break
+      case "w":
+        config.value.hideLinesForWhite = !config.value.hideLinesForWhite
+        break
+      case "b":
+        config.value.hideLinesForBlack = !config.value.hideLinesForBlack
         break
     }
   }
@@ -178,7 +200,8 @@
 
   /** Compute shapes */
   $effect(() => {
-    const currentData = gameState.currentNode.data
+    const currentNode = gameState.currentNode
+    const currentData = currentNode.data
     const shapes: DrawShape[] = []
 
     // Individual move quality
@@ -203,51 +226,67 @@
       }
     }
 
-    const topEngineUcis = currentData.topEngineMovesUci
-    for (let uci of topEngineUcis) {
-      const topMove = parseUci(uci) as NormalMove
-      const shape: DrawShape = {
-        orig: makeSquare(topMove.from),
-        dest: makeSquare(topMove.to),
-        brush: "paleBlue"
+    if (!(currentData.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack)) {
+      // Actual move
+      if (currentNode.children.length > 0) {
+        const child = currentNode.children[0]
+        const move = parseUci(child.data.lan) as NormalMove
+        shapes.push({
+          orig: makeSquare(move.from) as Key,
+          dest: makeSquare(move.to) as Key,
+          brush: "white",
+          modifiers: { hilite: true }
+        })
       }
-      if (existsBrilliantMove(currentData)) {
-        shape.label = { text: "!!", fill: moveQualities.best.color }
-      }
-      shapes.push(shape)
-    }
 
-    const topHumanUci = currentData.topHumanMoveUci
-    if (topHumanUci) {
-      const topMove = parseUci(topHumanUci) as NormalMove
-      const score = currentData.moveAnalyses.find((m) => m[0] === topHumanUci)[1].score
-      const best = currentData.eval
-      const shape: DrawShape = {
-        orig: makeSquare(topMove.from),
-        dest: makeSquare(topMove.to),
-        brush: "paleRed"
-      }
-      if (score !== undefined && best !== undefined) {
-        const q = moveQuality(score, best)
-        if (q.threshold >= 0.1 && q.threshold < 9000) {
-          shape.label = { text: q.annotation, fill: q.color }
+      // Top engine move
+      const topEngineUcis = currentData.topEngineMovesUci
+      for (let uci of topEngineUcis) {
+        const topMove = parseUci(uci) as NormalMove
+        const shape: DrawShape = {
+          orig: makeSquare(topMove.from),
+          dest: makeSquare(topMove.to),
+          brush: "paleBlue"
         }
+        if (existsBrilliantMove(currentData)) {
+          shape.label = { text: "!!", fill: moveQualities.best.color }
+        }
+        shapes.push(shape)
       }
-      shapes.push(shape)
+
+      // Top human move
+      const topHumanUci = currentData.topHumanMoveUci
+      if (topHumanUci) {
+        const topMove = parseUci(topHumanUci) as NormalMove
+        const score = currentData.moveAnalyses.find((m) => m[0] === topHumanUci)[1].score
+        const best = currentData.eval
+        const shape: DrawShape = {
+          orig: makeSquare(topMove.from),
+          dest: makeSquare(topMove.to),
+          brush: "paleRed"
+        }
+        if (score !== undefined && best !== undefined) {
+          const q = moveQuality(score, best)
+          if (q.threshold >= 0.1 && q.threshold < 9000) {
+            shape.label = { text: q.annotation, fill: q.color }
+          }
+        }
+        shapes.push(shape)
+      }
     }
 
     chessboard.setAutoShapes(shapes)
-  })
-
-  /** Disable animation when engine is running, to prevent a stuttery experience. */
-  $effect(() => {
-    chessboard.set({ animation: { enabled: engine.status !== "running" } })
   })
 
   /** Eval bar. */
   $effect(() => {
     const data = gameState.currentNode.data
     evalBar.update(data.turn, data.eval)
+  })
+
+  /** Persisting config. */
+  $effect(() => {
+    window.api.config.set($state.snapshot(config.value))
   })
 
   onMount(() => {
@@ -275,19 +314,44 @@
       gameState.currentNode = gameState.currentNode.end()
     })
 
-    window.electron.ipcRenderer.on("goBack", () => {
-      goBack()
+    window.electron.ipcRenderer.on("prevVariation", () => {
+      const node = gameState.currentNode
+      if (node.isRoot()) return
+      const siblings = node.data.parent.children
+      const i = siblings.indexOf(node)
+      gameState.currentNode = siblings[(i + siblings.length - 1) % siblings.length]
     })
 
-    window.electron.ipcRenderer.on("goForward", () => {
-      goForward()
+    window.electron.ipcRenderer.on("nextVariation", () => {
+      const node = gameState.currentNode
+      if (node.isRoot()) return
+      const siblings = node.data.parent.children
+      const i = siblings.indexOf(node)
+      gameState.currentNode = siblings[(i + 1) % siblings.length]
     })
 
-    window.electron.ipcRenderer.on("deleteNode", () => {
-      const parent = gameState.currentNode.data.parent
-      if (parent) {
-        parent.children = parent.children.filter((c) => c !== gameState.currentNode)
-        gameState.currentNode = parent
+    window.electron.ipcRenderer.on("returnToMainline", () => {
+      let node = gameState.currentNode
+      let res = node
+      while (!node.isRoot()) {
+        if (node.data.parent.children[0] !== node) {
+          res = node.data.parent
+        }
+        node = node.data.parent
+      }
+      gameState.currentNode = res
+    })
+
+    window.electron.ipcRenderer.on("promoteToMainline", () => {
+      let node = gameState.currentNode
+      while (!node.isRoot()) {
+        const siblings = node.data.parent.children
+        const i = siblings.indexOf(node)
+        if (i > 0) {
+          siblings.splice(i, 1)
+          siblings.unshift(node)
+        }
+        node = node.data.parent
       }
     })
 
@@ -312,8 +376,6 @@
       await engine.stop()
       gameState.currentNode.data.resetAnalysis()
     })
-
-    window.electron.ipcRenderer.on("forgetAllAnalysis", () => {})
 
     window.electron.ipcRenderer.on("playTopEngineMove", () => {
       const moves = gameState.currentNode.data.topEngineMovesUci
@@ -436,12 +498,12 @@
       </button>
       <div class=" flex-2/3 overflow-auto">
         <!-- Infobox -->
-        <Infobox />
+        <Infobox data={gameState.currentNode.data} />
       </div>
       <div class="flex-1/3 overflow-auto">
         <!-- Move list root -->
         <div class="p-1 select-none flex flex-wrap max-h-full">
-          <MoveListNode ply={0} node={gameState.game.moves} />
+          <MoveListNode ply={0} node={gameState.game.moves} bind:currentNode={gameState.currentNode} />
         </div>
       </div>
     </div>

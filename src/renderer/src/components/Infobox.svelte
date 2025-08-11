@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { gameState, humanProbability, type MoveAnalysis, NodeData, rawEval } from "../game.svelte"
+  import { config } from "../config.svelte"
+  import { humanProbability, type MoveAnalysis, NodeData, rawEval } from "../game.svelte"
   import Score from "./Score.svelte"
 
-  let humanSort = $state(false)
+  const { data }: { data: NodeData } = $props()
 
   function f(a: MoveAnalysis, b: MoveAnalysis) {
     return rawEval(a.score) - rawEval(b.score)
@@ -13,7 +14,7 @@
   }
 
   function cmp(a: MoveAnalysis, b: MoveAnalysis) {
-    return humanSort ? g(a, b) || f(a, b) : f(a, b) || g(a, b)
+    return config.value.humanSort ? g(a, b) || f(a, b) : f(a, b) || g(a, b)
   }
 
   function color(a: MoveAnalysis) {
@@ -37,29 +38,45 @@
     const topMoves = [...new Set([...topEngineMoves, ...topHumanMoves])]
     return topMoves.sort(([, a], [, b]) => cmp(b, a))
   }
+
+  function hideLines() {
+    return data.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack
+  }
 </script>
 
 <div>
-  {#if gameState.currentNode}
-    {@const data = gameState.currentNode.data}
-    <div class="p-2"><label><input type="checkbox" bind:checked={humanSort} /> Sort human</label></div>
-    <div>
-      {#each sortedAnalyses(data) as entry}
-        <div class="flex gap-2 items-center">
-          <Score class="text-right min-w-12" score={entry[1].score} best={data.eval} turn={data.turn} />
-          <div class="text-right min-w-12" style="color: {color(entry[1])}">
-            {humanProbability(entry[1]) === undefined ? "" : (humanProbability(entry[1]) * 100).toFixed()}%
-          </div>
-          <div class="text-xs text-gray-400 min-w-6 text-center">{entry[1].depth}</div>
-          <div class="relative flex-1 flex items-center">
-            <div class="absolute max-w-full text-ellipsis text-nowrap overflow-hidden">
+  <div class="flex gap-6 items-center justify-center">
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="checkbox1" bind:checked={config.value.humanSort} />
+      <label for="checkbox1">Sort human</label>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="checkbox2" bind:checked={config.value.hideLinesForWhite} />
+      <label for="checkbox2">Hide white lines</label>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="checkbox3" bind:checked={config.value.hideLinesForBlack} />
+      <label for="checkbox3">Hide black lines</label>
+    </div>
+  </div>
+  <div>
+    {#each sortedAnalyses(data) as entry}
+      <div class="flex gap-2 items-center">
+        <Score class="text-right min-w-12" score={entry[1].score} best={data.eval} turn={data.turn} />
+        <div class="text-right min-w-12" style="color: {color(entry[1])}">
+          {humanProbability(entry[1]) === undefined ? "" : (humanProbability(entry[1]) * 100).toFixed()}%
+        </div>
+        <div class="text-xs text-gray-400 min-w-6 text-center">{entry[1].depth}</div>
+        <div class="relative flex-1 flex items-center">
+          <div class="absolute max-w-full text-ellipsis text-nowrap overflow-hidden">
+            {#if !hideLines()}
               {#each entry[1].pv as move, i}
                 <span style="color: {(i + (data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span>&nbsp;
               {/each}
-            </div>
+            {/if}
           </div>
         </div>
-      {/each}
-    </div>
-  {/if}
+      </div>
+    {/each}
+  </div>
 </div>

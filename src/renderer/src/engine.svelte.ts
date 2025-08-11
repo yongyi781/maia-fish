@@ -1,7 +1,7 @@
 import { fen } from "chessops"
-import { gameState, NodeData } from "./game.svelte"
-import { chessFromFen, pvUciToSan } from "./utils"
+import { gameState, type MoveAnalysis, NodeData } from "./game.svelte"
 import { Score } from "./types"
+import { chessFromFen, pvUciToSan } from "./utils"
 
 export interface UciInfo {
   depth?: number
@@ -94,7 +94,10 @@ export class Engine {
   #stopOff?: () => void
   /** The engine's actual status. */
   status: "stopped" | "running" = $state("stopped")
-  positionChanging = false
+
+  constructor() {
+    window.api.engine.start("")
+  }
 
   get analyzing() {
     return this.#analyzing
@@ -117,12 +120,8 @@ export class Engine {
     this.#off?.()
     this.#off = undefined
     const data = gameState.currentNode.data
-    this.#off = window.electron.ipcRenderer.on("engine-output", (_, output: string) => {
-      try {
-        for (let line of output.split("\n")) this.processLine(line, data)
-      } catch (error) {
-        console.error(error)
-      }
+    this.#off = window.electron.ipcRenderer.on("engine-output", async (_, lines: string[]) => {
+      this.processOutput(lines, data)
     })
     window.api.engine.send("go")
     this.status = "running"
@@ -136,8 +135,8 @@ export class Engine {
     if (this.status === "stopped" || this.#stopOff) return
     window.api.engine.send("stop")
     return new Promise<void>((resolve) => {
-      this.#stopOff = window.electron.ipcRenderer.on("engine-output", (_, output: string) => {
-        for (let line of output.split("\n")) {
+      this.#stopOff = window.electron.ipcRenderer.on("engine-output", (_, lines: string[]) => {
+        for (let line of lines) {
           if (line.startsWith("bestmove")) {
             this.status = "stopped"
             this.#stopOff?.()
@@ -167,21 +166,28 @@ export class Engine {
   }
 
   /** Main method to process Stockfish output and save the info in the node data. */
-  processLine(line: string, data: NodeData) {
-    if (line.startsWith("info depth") && line.includes(" pv ")) {
-      const info = parseUciInfo(line)
-      const lan = info.pv[0]
-      const entry = data.moveAnalyses.find((m) => m[0] === lan)?.[1]
-
-      if (entry && (!entry.depth || info.depth >= entry.depth)) {
-        // Convert the PV to SAN.
-        info.pv = pvUciToSan(chessFromFen(data.fen), info.pv)
-        Object.assign(entry, info)
+  processOutput(lines: string[], data: NodeData) {
+    const pos = chessFromFen(data.fen)
+    for (const line of lines.reverse()) {
+      if (line.startsWith("info depth") && line.includes(" pv ")) {
+        const info = parseUciInfo(line)
+        const lan = info.pv[0]
+        const index = data.lanToIndex.get(lan)
+        if (index === undefined) {
+          console.warn("Unexpected undefined index")
+          continue
+        }
+        const entry = data.moveAnalyses[index][1]
+        if (entry && (!entry.depth || info.depth >= entry.depth)) {
+          // Convert the PV to SAN.
+          info.pv = pvUciToSan(pos, info.pv)
+          Object.assign(entry, info)
+        }
+      } else if (line.startsWith("bestmove")) {
+        this.status = "stopped"
+        this.#off?.()
+        this.#off = undefined
       }
-    } else if (line.startsWith("bestmove")) {
-      this.status = "stopped"
-      this.#off?.()
-      this.#off = undefined
     }
   }
 }

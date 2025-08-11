@@ -2,25 +2,21 @@ import { app } from "electron"
 import { join } from "path"
 import { readFileSync, writeFileSync, existsSync } from "fs"
 
-const CONFIG_VERSION = 2
+const CONFIG_VERSION = 4
 
-export interface AppConfig {
-  version: number
-  stockfishPath: string
-  nodes: number
-  lichessThreshold: number
-  lichessBookSpeeds: string[]
-  lichessBookRatings: number[]
-}
-
-const defaultConfig: AppConfig = {
+const defaultConfig = {
   version: CONFIG_VERSION,
   stockfishPath: String.raw`C:\Apps\Stockfish\stockfish_x86-64-bmi2.exe`,
   nodes: 1000000,
   lichessThreshold: 1000,
   lichessBookSpeeds: ["blitz", "rapid", "classical", "correspondence"],
-  lichessBookRatings: [1600, 1800, 2000, 2200, 2500]
+  lichessBookRatings: [1600, 1800, 2000, 2200, 2500],
+  humanSort: false,
+  hideLinesForWhite: false,
+  hideLinesForBlack: false
 }
+
+export type AppConfig = typeof defaultConfig
 
 export const configPath = join(app.getPath("userData"), "config.json")
 
