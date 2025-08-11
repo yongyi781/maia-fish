@@ -3,7 +3,7 @@
   import { type Score } from "../types"
   import { formatScore, moveQuality } from "../utils"
 
-  type Props = HTMLAttributes<HTMLSpanElement> & {
+  type Props = HTMLAttributes<HTMLDivElement> & {
     score: Score
     best: Score
     turn: "w" | "b"
@@ -13,12 +13,12 @@
   const { score, best, turn, class: className = "", ...restProps }: Props = $props()
 </script>
 
-{#if isFinite(score?.value) && isFinite(best?.value)}
-  <span
-    class={className + " font-bold"}
-    style="color: {score === undefined ? 'gray' : moveQuality(score, best)?.color}"
-    {...restProps}
-  >
+<div
+  class={className + " font-bold"}
+  style="color: {!score || !best ? 'gray' : moveQuality(score, best)?.color}"
+  {...restProps}
+>
+  {#if isFinite(score?.value) && isFinite(best?.value)}
     {score === undefined ? "?" : formatScore(turn, score)}
-  </span>
-{/if}
+  {/if}
+</div>

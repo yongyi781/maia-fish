@@ -1,12 +1,4 @@
-import { pgn } from "chessops"
-import { ElectronAPI } from "@electron-toolkit/preload"
-
-declare global {
-  interface Window {
-    electron: ElectronAPI
-    api: any
-  }
-}
+import "../../main/types"
 
 /** Evaluation score. */
 export type Score = {

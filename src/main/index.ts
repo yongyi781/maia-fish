@@ -3,7 +3,7 @@ import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import { join } from "path"
-import icon from "../../resources/icon.png?asset"
+import icon from "../../resources/icon.ico?asset"
 import maia_rapid from "../../resources/maia_rapid.onnx?asset"
 import { AppConfig, loadConfig, saveConfig } from "./config"
 
@@ -18,7 +18,7 @@ function createWindow(): void {
     backgroundColor: "black",
     width: 1024,
     height: 900,
-    ...(process.platform === "linux" ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false
@@ -65,13 +65,13 @@ app.whenReady().then(async () => {
     saveConfig(newConfig)
   })
 
-  ipcMain.handle("choose-stockfish", async () => {
+  ipcMain.handle("engine:choose", async () => {
     const result = await dialog.showOpenDialog({ properties: ["openFile"] })
     return result.filePaths[0]
   })
 
-  ipcMain.on("stockfish-command", (_, command) => {
-    console.log("SF command:", command)
+  ipcMain.on("engine:send", (_, command) => {
+    // console.log("SF command:", command)
     if (stockfishProcess && stockfishProcess.stdin.writable) stockfishProcess.stdin.write(command + "\n")
   })
 

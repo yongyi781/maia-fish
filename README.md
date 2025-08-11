@@ -1,4 +1,4 @@
-# nibbler2
+# maia-fish
 
 A chess GUI for comparing Stockfish and Maia analysis.
 
@@ -9,13 +9,12 @@ This application allows you to analyze chess positions and games with two differ
 
 ## Todo
 
-- Winrate graph
-  - Dots for treacherous positions, also dots for mistakes/blunders
-- Lichess opening stats
+- Dots on eval graph for treacherous positions
 - Auto-analyze
   - Figure out how to do this
 - New app title
 - Fix: Canceling in promotion dialog
+- Fix: implement draw by threefold repetition and 50-move rule
 
 ## Features
 

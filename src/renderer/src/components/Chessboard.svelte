@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Config } from "chessground/config"
   import type { DrawBrush, DrawShape } from "chessground/draw"
   import type { Key, MoveMetadata } from "chessground/types"
   import { Chess, makeSquare, type NormalMove, parseSquare, type Role } from "chessops"
@@ -52,6 +53,11 @@
   /** Gets the current Chessground state. */
   export function getState() {
     return cg.getState()
+  }
+
+  /** Sets config values. */
+  export function set(config: Config) {
+    cg.set(config)
   }
 
   /** Toggles the orientation of the board. */

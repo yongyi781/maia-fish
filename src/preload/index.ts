@@ -1,17 +1,20 @@
 import { clipboard, contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
 import { AppConfig } from "../main/config"
+import { WindowAPI } from "../main/types"
 
 // Custom APIs for renderer
-const api = {
+const api: WindowAPI = {
   config: {
     get: () => ipcRenderer.invoke("config:get"),
     set: (config: AppConfig) => ipcRenderer.invoke("config:set", config)
   },
+  engine: {
+    choose: () => ipcRenderer.invoke("engine:choose"),
+    start: (path: string) => ipcRenderer.send("engine:start", path),
+    send: (command: string) => ipcRenderer.send("engine:send", command)
+  },
   writeToClipboard: (text: string) => clipboard.writeText(text),
-  chooseStockfish: () => ipcRenderer.invoke("choose-stockfish"),
-  start: (path: string) => ipcRenderer.send("start-stockfish", path),
-  sendEngineCommand: (cmd: string) => ipcRenderer.send("stockfish-command", cmd),
   analyzeMaia: ({ boardInput, eloSelfCategory, eloOppoCategory }) =>
     ipcRenderer.invoke("analyze-maia", {
       boardInput,

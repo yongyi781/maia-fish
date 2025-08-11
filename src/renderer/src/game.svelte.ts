@@ -1,8 +1,9 @@
-import { fen, makeUci, type NormalMove, pgn } from "chessops"
+import { Chess, fen, makeUci, type NormalMove, parseUci, pgn } from "chessops"
 import { makeFen } from "chessops/fen"
-import { makeSan, parseSan } from "chessops/san"
+import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
 import { Score } from "./types"
 import { allLegalMoves, chessFromFen, normalizeMove } from "./utils"
+import { config } from "./config.svelte"
 
 /** Converts an `Score` to a raw evaluation, for comparison purposes. */
 export function rawEval(e: Score | undefined) {
@@ -33,10 +34,17 @@ export interface MoveAnalysis {
   pv: string[]
   depth?: number
   score?: Score
-  humanProbability?: number
+  maiaProbability?: number
+  lichessProbability?: number
   /** Number of nodes searched in this analysis. */
   nodes?: number
   nps?: number
+  /** Timestamp of the last update. For throttling. */
+  lastUpdate?: number
+}
+
+export function humanProbability(a: MoveAnalysis) {
+  return a.lichessProbability !== undefined ? a.lichessProbability : a.maiaProbability
 }
 
 /**
@@ -44,6 +52,9 @@ export interface MoveAnalysis {
  * instances.
  */
 export class NodeData implements pgn.PgnNodeData {
+  /** The move number in plies (half-moves). */
+  moveNumber: number
+  /** Short algebraic notation for the move. */
   san: string
   /** Long algebraic notation for the move. */
   lan: string
@@ -66,6 +77,7 @@ export class NodeData implements pgn.PgnNodeData {
     }
     this.turn = this.fen.split(" ")[1] as "w" | "b"
     const pos = chessFromFen(this.fen)
+    this.moveNumber = this.turn === "w" ? pos.fullmoves - 1 : pos.fullmoves
     this.moveAnalyses = allLegalMoves(pos).map((move): [string, MoveAnalysis] => {
       return [makeUci(move), { pv: [makeSan(pos, move)] }]
     })
@@ -85,7 +97,7 @@ export class NodeData implements pgn.PgnNodeData {
       : {
           type: "cp",
           value: this.moveAnalyses.reduce(
-            (acc, [, ma]) => acc + rawEvalClamped(ma.score) * (ma.humanProbability ?? 0),
+            (acc, [, ma]) => acc + rawEvalClamped(ma.score) * (humanProbability(ma) ?? 0),
             0
           )
         }
@@ -93,8 +105,9 @@ export class NodeData implements pgn.PgnNodeData {
 
   /** Gets the top human move according to the analysis. */
   topHumanMoveUci: string = $derived.by(() => {
-    const entries = this.moveAnalyses.filter((a) => a[1].humanProbability !== undefined)
-    if (entries.length > 0) return entries.reduce((a, b) => (a[1].humanProbability > b[1].humanProbability ? a : b))[0]
+    const entries = this.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
+    if (entries.length > 0)
+      return entries.reduce((a, b) => (humanProbability(a[1]) > humanProbability(b[1]) ? a : b))[0]
   })
 
   /** Gets the top engine move (multiple if tied) according to the analysis. */
@@ -152,17 +165,40 @@ export class Node {
   }
 
   /** Returns the moves from the root to this node. */
-  movesFromRoot(): string {
+  movesFromRootUci(): string[] {
     const path = [...this.pathToRoot()]
     path.reverse()
     path.shift()
-    return path.map((n) => n.data.lan).join(" ")
+    return path.map((n) => n.data.lan)
   }
 
   end(): Node {
     let node: Node = this
     while (node.children.length) node = node.children[0]
     return node
+  }
+
+  async fetchLichessStats() {
+    const data = this.data
+    if (
+      !config.value?.lichessBookSpeeds ||
+      !config.value?.lichessBookRatings ||
+      data.moveNumber > 20 ||
+      data.moveAnalyses.length === 0 ||
+      data.moveAnalyses[0][1].lichessProbability !== undefined
+    )
+      return
+    const url = makeLichessUrl(data.fen)
+    const response = await fetch(url)
+    const json = await response.json()
+    const totalGames = json.moves.reduce((a: number, b: any) => a + b.white + b.draws + b.black, 0)
+    if (totalGames < config.value.lichessThreshold) return
+    const pos = chessFromFen(data.fen)
+    for (const [lan, a] of data.moveAnalyses) {
+      const move = json.moves.find((m: any) => makeUci(normalizeMove(pos, parseUci(m.uci) as NormalMove)) === lan)
+      if (!move) a.lichessProbability = 0
+      else a.lichessProbability = (move.white + move.draws + move.black) / totalGames
+    }
   }
 }
 
@@ -211,6 +247,8 @@ export class GameState {
     ]),
     moves: new Node()
   })
+  /** The chess position. */
+  chess = $state(Chess.default())
   /** The currently selected node. */
   currentNode = $state(new Node({}))
   /** The line containing the currently selected node. */
@@ -224,6 +262,45 @@ export class GameState {
   get root() {
     return this.game.moves
   }
+
+  /** Performs a move. */
+  makeMove(m: NormalMove) {
+    const san = makeSanAndPlay(this.chess, m)
+    if (!san) {
+      throw new Error("Invalid SAN in makeMove")
+    }
+    const lan = makeUci(m)
+    let exists = false
+    for (let c of gameState.currentNode.children)
+      if (c.data.san === san) {
+        gameState.currentNode = c
+        exists = true
+        break
+      }
+    if (!exists) {
+      const child = new Node({
+        fen: makeFen(this.chess.toSetup()),
+        lan: lan,
+        san: san,
+        parent: gameState.currentNode
+      })
+      gameState.currentNode.children.push(child)
+      gameState.currentNode = child
+    }
+  }
 }
 
 export const gameState = new GameState()
+
+function makeLichessUrl(fen: string) {
+  const url = new URL("https://explorer.lichess.ovh/lichess")
+  const params = new URLSearchParams()
+  params.append("variant", "standard")
+  params.append("topGames", "0")
+  params.append("recentGames", "0")
+  params.append("speeds", config.value.lichessBookSpeeds.toString())
+  params.append("ratings", config.value.lichessBookRatings.toString())
+  params.append("fen", fen)
+  url.search = params.toString()
+  return url
+}

@@ -2,7 +2,7 @@
   import type { Score } from "../types"
   import { scoreWhitePov } from "../utils"
 
-  const { maxScore = 7, orientation = "white" as "white" | "black" } = $props()
+  const { maxScore = 7, orientation = "white" as "white" | "black", class: className = "", ...restProps } = $props()
 
   let turn: "w" | "b" = $state("w")
   let score: Score = $state({
@@ -37,7 +37,7 @@
   }
 </script>
 
-<div class="relative w-6 h-full flex flex-col items-center">
+<div {...restProps} class="relative w-6 h-full flex flex-col items-center {className}">
   <div
     class="w-full h-full flex flex-col-reverse rounded-sm overflow-hidden {orientation === 'black'
       ? '-scale-y-100'

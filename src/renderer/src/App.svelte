@@ -1,10 +1,9 @@
 <script lang="ts">
   import type { DrawShape } from "chessground/draw"
   import type { Key } from "chessground/types"
-  import { Chess, fen, makeSquare, makeUci, type NormalMove, parseUci } from "chessops"
-  import { makeFen, parseFen } from "chessops/fen"
+  import { makeSquare, type NormalMove, parseUci } from "chessops"
+  import { parseFen } from "chessops/fen"
   import { makePgn, parsePgn } from "chessops/pgn"
-  import { makeSanAndPlay } from "chessops/san"
   import { onMount, untrack } from "svelte"
   import "./app.css"
   import Chessboard from "./components/Chessboard.svelte"
@@ -13,130 +12,71 @@
   import Infobox from "./components/Infobox.svelte"
   import MoveListNode from "./components/MoveListNode.svelte"
   import Score from "./components/Score.svelte"
-  import { fromPgnNode, gameState, Node, NodeData } from "./game.svelte"
+  import { Engine } from "./engine.svelte"
+  import { fromPgnNode, gameState, humanProbability, Node } from "./game.svelte"
   import { preprocess, processOutputs } from "./maia-utils"
   import {
     allLegalMoves,
     chessFromFen,
+    existsBrilliantMove,
     formatScore,
+    isTextFocused,
     moveQualities,
     moveQuality,
-    parseUciInfo,
-    pvUciToSan,
     randomChoice,
     randomWeightedChoice
   } from "./utils"
 
-  let chess = $state(Chess.default())
-  let chessboard: Chessboard = $state()
+  let chessboard: Chessboard
   let evalBar: EvalBar
-  const initialFen = $derived(gameState.game.moves.data.fen ?? fen.INITIAL_FEN)
-  const fenStr = $derived(gameState.currentNode.data.fen ?? initialFen)
-  /** Whether we are analyzing. */
-  let analyzing = $state(false)
+  /** Reactive orientation variable for the eval bar. */
   let orientation: "white" | "black" = $state("white")
-  /** The engine's actual status. */
-  let engineStatus: "stopped" | "running" = "stopped"
-  /** Whether we are currently changing the position. */
-  let positionChanging = false
+  const engine = new Engine()
   /** A timeout for debouncing engine commands. */
   // let pendingEngineTimeout: NodeJS.Timeout
 
-  /** Updates the engine position. */
-  function updateEnginePosition() {
-    let shouldStartEngine = false
-    if (analyzing) {
-      positionChanging = true
-      if (engineStatus === "running") {
-        window.api.sendEngineCommand("stop")
-      } else {
-        shouldStartEngine = true
-        positionChanging = false
-      }
-    }
-    let command = `position ${initialFen === fen.INITIAL_FEN ? "startpos" : "fen " + initialFen}`
-    const moves = gameState.currentNode.movesFromRoot()
-    if (moves.length > 0) command += ` moves ${moves}`
-    window.api.sendEngineCommand(command)
-    if (shouldStartEngine) {
-      window.api.sendEngineCommand("go")
-      engineStatus = "running"
-    }
-  }
-
-  function onPositionChanged() {
-    chess = chessFromFen(gameState.currentNode.data.fen)
+  function handleCurrentNodeChanged() {
+    const data = gameState.currentNode.data
+    gameState.chess = chessFromFen(data.fen)
     let lastMove: NormalMove | undefined
-    if (gameState.currentNode.data.lan) {
-      lastMove = parseUci(gameState.currentNode.data.lan) as NormalMove
+    if (data.lan) {
+      lastMove = parseUci(data.lan) as NormalMove
     }
-    chessboard?.load(chess, lastMove)
+    chessboard?.load(gameState.chess, lastMove)
     // Populate Maia evaluations
-    const analyses = gameState.currentNode.data.moveAnalyses
-    if (analyses.length === 0 || analyses[0][1].humanProbability === undefined) staticEval()
-    // Change engine position
-    updateEnginePosition()
+    const analyses = data.moveAnalyses
+    if (analyses.length !== 0 && analyses[0][1].maiaProbability === undefined) populateMaiaProbabilities()
+    engine.updateEnginePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
   }
 
-  /** Performs a move. */
-  function makeMove(m: NormalMove) {
-    const san = makeSanAndPlay(chess, m)
-    if (!san) {
-      console.error("Invalid SAN in makeMove")
-      return
-    }
-    const lan = makeUci(m)
-    let exists = false
-    for (let c of gameState.currentNode.children)
-      if (c.data.san === san) {
-        gameState.currentNode = c
-        exists = true
-        break
-      }
-    if (!exists) {
-      const child = new Node({
-        fen: makeFen(chess.toSetup()),
-        lan: lan,
-        san: san,
-        parent: gameState.currentNode
-      })
-      gameState.currentNode.children.push(child)
-      gameState.currentNode = child
-    }
-  }
-
-  function onKeyDown(e: KeyboardEvent) {
-    if (e.key === " ") {
-      const ae = document.activeElement
-      if (ae.tagName !== "INPUT" && ae.tagName !== "TEXTAREA" && !ae["isContentEditable"]) {
-        e.preventDefault()
-        handleAnalyzeClicked()
-      }
-    } else if (e.key === "c") {
-      chessboard.setAutoShapes([
-        {
-          orig: "d5",
-          label: { text: "?!", fill: "red" }
-        }
-      ])
+  function handleWheel(e: WheelEvent) {
+    e.preventDefault()
+    if (e.deltaY > 0) {
+      goForward()
+    } else if (e.deltaY < 0) {
+      goBack()
     }
   }
 
   async function handleAnalyzeClicked() {
-    if (analyzing) {
-      analyzing = false
-      window.api.sendEngineCommand("stop")
-    } else {
-      analyzing = true
-      window.api.sendEngineCommand("go")
-      engineStatus = "running"
+    engine.toggleAnalyze()
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (isTextFocused()) return
+    if (e.key === " ") {
+      e.preventDefault()
+      handleAnalyzeClicked()
     }
   }
 
-  async function fetchLichessStats() {}
+  /** Triggers: `gameState.currentNode` and `config.value`. */
+  $effect(() => {
+    gameState.currentNode.fetchLichessStats()
+  })
 
   /** Evaluates the position with Maia. */
-  async function staticEval() {
+  async function populateMaiaProbabilities() {
     const currentNode = gameState.currentNode
     const { boardInput, eloSelfCategory, eloOppoCategory, legalMoves } = preprocess(currentNode.data.fen, 1900, 1900)
     const { logits_maia, logits_value } = await window.api.analyzeMaia({
@@ -144,46 +84,9 @@
       eloSelfCategory,
       eloOppoCategory
     })
-    const outputs = processOutputs(fenStr, logits_maia, logits_value, legalMoves)
+    const outputs = processOutputs(currentNode.data.fen, logits_maia, logits_value, legalMoves)
     for (let [lan, a] of currentNode.data.moveAnalyses) {
-      a.humanProbability = outputs.policy[lan]
-    }
-  }
-
-  /** Main method to process Stockfish output */
-  function processEngineOutput(line: string) {
-    try {
-      if (!positionChanging && line.startsWith("info depth") && line.includes(" pv ")) {
-        const info = parseUciInfo(line)
-        if (!info || !info.pv) {
-          console.error("PV missing?", line)
-          return
-        }
-        const lan = info.pv[0]
-        const entry = gameState.currentNode.data.moveAnalyses.find((m) => m[0] === lan)
-        // Write only if depth >= max(6, current depth)
-        if (entry && info.depth >= (entry[1].depth || 6)) {
-          // Convert the PV to SAN.
-          info.pv = pvUciToSan(chess, info.pv)
-          Object.assign(entry[1], info)
-        }
-      } else if (line.startsWith("bestmove")) {
-        // "bestmove" = engine stopped.
-        if (analyzing) {
-          if (positionChanging) {
-            // Debounce
-            // clearTimeout(pendingEngineTimeout)
-            positionChanging = false
-            window.api.sendEngineCommand("go")
-            engineStatus = "running"
-          } else {
-            // Stopped on its own (e.g. exhausted the tree).
-            engineStatus = "stopped"
-          }
-        }
-      }
-    } catch (error) {
-      throw error
+      a.maiaProbability = outputs.policy[lan]
     }
   }
 
@@ -219,36 +122,38 @@
   }
 
   function title() {
-    const appName = "Nibbler2"
+    const appName = "Maia Fish"
     let detail = ""
     const white = gameState.game.headers.get("White")
     const black = gameState.game.headers.get("Black")
     if (white && black) detail = `${white} vs ${black}`
-    if (analyzing) detail += " (Analyzing...)"
+    if (engine.analyzing) detail += " (Analyzing...)"
     return detail.length === 0 ? appName : `${appName} - ${detail}`
   }
 
-  /**
-   * Checks there exists a brilliant move. The requirements are:
-   * - The position is not super-losing (i.e. cp >= -500)
-   * - Every human move with ≥ 3% probability is an inaccuracy or worse.
-   */
-  function existsBrilliantMove(data: NodeData, humanProbThreshold = 0.03) {
-    const best = data.eval
-    // If the position is super-losing (cp < -500) then there can't be a brilliant move.
-    if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
-    const hasObviousGoodMove = data.moveAnalyses.some(
-      ([, a]) =>
-        a.humanProbability >= humanProbThreshold &&
-        (a.score === undefined || moveQuality(a.score, best).threshold < 0.1)
-    )
-    return !hasObviousGoodMove
+  /** Loads a FEN or PGN. */
+  function loadFenOrPgn(text: string) {
+    const setup = parseFen(text)
+    if (setup.isOk) {
+      loadFen(text)
+    } else {
+      const pgns = parsePgn(text)
+      if (pgns.length < 0) throw new Error("Invalid PGN")
+      gameState.game = {
+        headers: pgns[0].headers,
+        moves: fromPgnNode(pgns[0].moves)
+      }
+      gameState.currentNode = gameState.game.moves
+    }
+    engine.analyzing = false
+    engine.newGame()
   }
 
+  /** Main position changed handler. */
   $effect(() => {
     gameState.currentNode
     untrack(() => {
-      onPositionChanged()
+      handleCurrentNodeChanged()
     })
   })
 
@@ -315,8 +220,15 @@
     chessboard.setAutoShapes(shapes)
   })
 
+  /** Disable animation when engine is running, to prevent a stuttery experience. */
   $effect(() => {
-    evalBar.update(gameState.currentNode.data.turn, gameState.currentNode.data.eval)
+    chessboard.set({ animation: { enabled: engine.status !== "running" } })
+  })
+
+  /** Eval bar. */
+  $effect(() => {
+    const data = gameState.currentNode.data
+    evalBar.update(data.turn, data.eval)
   })
 
   onMount(() => {
@@ -333,7 +245,7 @@
       }
       gameState.currentNode = gameState.game.moves
       evalBar.reset()
-      window.api.sendEngineCommand("stop\nucinewgame")
+      engine.newGame()
     })
 
     window.electron.ipcRenderer.on("copyFenPgn", () => {
@@ -349,19 +261,7 @@
     })
 
     window.electron.ipcRenderer.on("pasteFenPgn", (_, [text]: string[]) => {
-      const setup = parseFen(text)
-      if (setup.isOk) {
-        loadFen(text)
-      } else {
-        const pgns = parsePgn(text)
-        if (pgns.length < 0) throw new Error("Invalid PGN")
-        gameState.game = {
-          headers: pgns[0].headers,
-          moves: fromPgnNode(pgns[0].moves)
-        }
-        gameState.currentNode = gameState.game.moves
-      }
-      window.api.sendEngineCommand("stop\nucinewgame")
+      loadFenOrPgn(text)
     })
 
     window.electron.ipcRenderer.on("gotoRoot", () => {
@@ -389,6 +289,7 @@
     })
 
     window.electron.ipcRenderer.on("deleteOtherLines", () => {
+      if (isTextFocused()) return
       let node = gameState.currentNode.end()
       let parent = node.data.parent
       while (parent) {
@@ -399,62 +300,60 @@
     })
 
     window.electron.ipcRenderer.on("flipBoard", () => {
+      if (isTextFocused()) return
       chessboard?.toggleOrientation()
       orientation = chessboard.getState().orientation
     })
 
     window.electron.ipcRenderer.on("playTopEngineMove", () => {
       const moves = gameState.currentNode.data.topEngineMovesUci
-      if (moves.length > 0) makeMove(parseUci(moves[0]) as NormalMove)
+      if (moves.length > 0) gameState.makeMove(parseUci(moves[0]) as NormalMove)
     })
 
     window.electron.ipcRenderer.on("playTopHumanMove", () => {
       const move = gameState.currentNode.data.topHumanMoveUci
-      if (move) makeMove(parseUci(move) as NormalMove)
+      if (move) gameState.makeMove(parseUci(move) as NormalMove)
     })
 
     window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
-      const entries = gameState.currentNode.data.moveAnalyses.filter((a) => a[1].humanProbability !== undefined)
+      const entries = gameState.currentNode.data.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
       if (entries.length === 0) return
-      const moves: [string, number][] = entries.map((a) => [a[0], a[1].humanProbability])
+      const moves: [string, number][] = entries.map((a) => [a[0], humanProbability(a[1])])
       const move = randomWeightedChoice(moves)
-      makeMove(parseUci(move) as NormalMove)
+      gameState.makeMove(parseUci(move) as NormalMove)
     })
 
     window.electron.ipcRenderer.on("playRandomMove", () => {
-      makeMove(randomChoice(allLegalMoves(chess)))
+      gameState.makeMove(randomChoice(allLegalMoves(gameState.chess)))
     })
 
     window.electron.ipcRenderer.on("stockfish-output", (_, output: string) => {
+      const data = gameState.currentNode.data
       try {
-        for (let line of output.split("\n")) processEngineOutput(line)
+        for (let line of output.split("\n")) engine.processLine(line, data)
       } catch (error) {
         console.error(error)
       }
     })
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners("newGame")
-      window.electron.ipcRenderer.removeAllListeners("gotoRoot")
-      window.electron.ipcRenderer.removeAllListeners("gotoEnd")
-      window.electron.ipcRenderer.removeAllListeners("goBack")
-      window.electron.ipcRenderer.removeAllListeners("goForward")
-      window.electron.ipcRenderer.removeAllListeners("deleteNode")
-      window.electron.ipcRenderer.removeAllListeners("deleteOtherLines")
-      window.electron.ipcRenderer.removeAllListeners("flipBoard")
-      window.electron.ipcRenderer.removeAllListeners("playWeightedHumanMove")
-      window.electron.ipcRenderer.removeAllListeners("playTopHumanMove")
-      window.electron.ipcRenderer.removeAllListeners("playRandomMove")
-      window.electron.ipcRenderer.removeAllListeners("stockfish-output")
+      window.electron.ipcRenderer.removeAllListeners(undefined)
     }
   })
 </script>
 
 <svelte:window
-  onkeydown={onKeyDown}
+  onkeydown={handleKeyDown}
+  ondragover={(e) => e.preventDefault()}
+  ondrop={async (e) => {
+    const file = e.dataTransfer?.files?.[0]
+    if (file) {
+      e.preventDefault()
+      loadFenOrPgn(await file.text())
+    }
+  }}
   onbeforeunload={() => {
-    analyzing = false
-    window.api.sendEngineCommand("stop")
+    engine.analyzing = false
   }}
 />
 
@@ -464,39 +363,34 @@
 <div class="h-screen flex flex-col p-1">
   <div class="flex gap-1">
     <!-- Left -->
-    <div
-      class=" w-[576px]"
-      onwheel={(e) => {
-        e.preventDefault()
-        if (e.deltaY > 0) {
-          goForward()
-        } else if (e.deltaY < 0) {
-          goBack()
-        }
-      }}
-    >
-      <Chessboard bind:this={chessboard} onmove={makeMove} />
+    <div class="w-[576px]">
+      <Chessboard
+        class="cg-default-style"
+        bind:this={chessboard}
+        onmove={(move) => gameState.makeMove(move)}
+        onwheel={handleWheel}
+      />
     </div>
     <EvalBar bind:this={evalBar} {orientation} />
     <!-- Right -->
-    <div class="flex flex-1 gap-2 flex-col max-h-[576px]">
+    <div class="flex flex-1/3 gap-2 flex-col max-h-[576px]">
       <button
-        class="flex p-1 h-16 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {analyzing
+        class="flex p-1 h-16 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
           ? 'bg-green-950 outline-green-900'
           : ' outline-zinc-700'}"
         onclick={handleAnalyzeClicked}
       >
-        {#if chess.isEnd()}
+        {#if gameState.chess.isEnd()}
           <div class="font-bold text-3xl w-full text-amber-200">
-            {#if chess.isCheckmate()}
+            {#if gameState.chess.isCheckmate()}
               Checkmate, {gameState.currentNode.data.turn === "w" ? "black" : "white"} wins
-            {:else if chess.isInsufficientMaterial()}
+            {:else if gameState.chess.isInsufficientMaterial()}
               Insufficient material
-            {:else if chess.isStalemate()}
+            {:else if gameState.chess.isStalemate()}
               Stalemate
             {/if}
           </div>
-        {:else if !analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
+        {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
           <div class="font-bold text-3xl w-full">Analyze</div>
         {:else}
           <div class="font-bold text-3xl text-nowrap w-24 text-center">
@@ -545,7 +439,7 @@
     <input
       class="w-[500px] font-mono"
       type="text"
-      value={fenStr}
+      value={gameState.currentNode.data.fen}
       onfocus={(e) => {
         e.currentTarget.select()
       }}
@@ -557,5 +451,5 @@
       }}
     />
   </div>
-  <div class="h-full"><EvalGraph /></div>
+  <div class="h-full"><EvalGraph onwheel={handleWheel} /></div>
 </div>

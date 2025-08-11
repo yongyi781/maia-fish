@@ -1,9 +1,9 @@
-import { Chess, Move, NormalMove, parseUci, Role, squareRank } from "chessops"
-import { Score } from "./types"
+import { Chess, NormalMove, parseUci, Role, squareRank } from "chessops"
+import { castlingSide } from "chessops/chess"
 import { parseFen } from "chessops/fen"
 import { makeSanAndPlay } from "chessops/san"
-import { rawEval } from "./game.svelte"
-import { castlingSide } from "chessops/chess"
+import { humanProbability, NodeData, rawEval } from "./game.svelte"
+import { Score } from "./types"
 
 export function delay(delayInms: number) {
   return new Promise((resolve) => setTimeout(resolve, delayInms))
@@ -45,88 +45,6 @@ export function allLegalMoves(pos: Chess): NormalMove[] {
     }
   }
   return res
-}
-
-export interface UciInfo {
-  depth?: number
-  seldepth?: number
-  multipv?: number
-  score?: Score
-  nodes?: number
-  nps?: number
-  hashfull?: number
-  tbhits?: number
-  time?: number // milliseconds
-  pv?: string[] // principal variation moves
-  [key: string]: any // for any other fields
-}
-
-/** Parse a single UCI "info" line into a UciInfo object.  */
-export function parseUciInfo(line: string): UciInfo {
-  const tokens = line.trim().split(/\s+/)
-  if (tokens.shift() !== "info") {
-    throw new Error("Not a UCI info line")
-  }
-
-  const info: UciInfo = {}
-  let i = 0
-  while (i < tokens.length) {
-    const key = tokens[i++]
-
-    switch (key) {
-      case "depth":
-        info.depth = parseInt(tokens[i++], 10)
-        break
-      case "seldepth":
-        info.seldepth = parseInt(tokens[i++], 10)
-        break
-      case "multipv":
-        info.multipv = parseInt(tokens[i++], 10)
-        break
-      case "score":
-        {
-          const kind = tokens[i++]
-          const val = parseInt(tokens[i++], 10)
-          if (kind === "cp" || kind === "mate") {
-            info.score = { type: kind, value: val }
-          } else {
-            throw new Error(`Unknown score kind: ${kind}`)
-          }
-          // optional bound flag
-          if (tokens[i] === "lowerbound" || tokens[i] === "upperbound") {
-            info.score.bound = tokens[i] === "lowerbound" ? "lower" : "upper"
-            i++
-          }
-        }
-        break
-      case "nodes":
-        info.nodes = parseInt(tokens[i++], 10)
-        break
-      case "nps":
-        info.nps = parseInt(tokens[i++], 10)
-        break
-      case "hashfull":
-        info.hashfull = parseInt(tokens[i++], 10)
-        break
-      case "tbhits":
-        info.tbhits = parseInt(tokens[i++], 10)
-        break
-      case "time":
-        info.time = parseInt(tokens[i++], 10)
-        break
-      case "pv":
-        // everything after "pv" are the moves
-        info.pv = tokens.slice(i)
-        i = tokens.length
-        break
-      default:
-        // unknown key: read next token as its value
-        info[key] = tokens[i++]
-        break
-    }
-  }
-
-  return info
 }
 
 /** Convenience method to get a chessops Chess object from a FEN string. */
@@ -254,4 +172,32 @@ export function randomWeightedChoice<T>(arr: [T, number][]) {
       return o[0]
     }
   }
+}
+
+/**
+ * Checks there exists a brilliant move. The requirements are:
+ * - The position is not super-losing (i.e. cp >= -500)
+ * - Every human move with ≥ 3% probability is an inaccuracy or worse.
+ */
+export function existsBrilliantMove(data: NodeData, humanProbThreshold = 0.03) {
+  const best = data.eval
+  // If the position is super-losing (cp < -500) then there can't be a brilliant move.
+  if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
+  const hasObviousGoodMove = data.moveAnalyses.some(
+    ([, a]) =>
+      humanProbability(a) >= humanProbThreshold && (a.score === undefined || moveQuality(a.score, best).threshold < 0.1)
+  )
+  return !hasObviousGoodMove
+}
+
+/** Checks if the text input is currently focused. */
+export function isTextFocused() {
+  const el = document.activeElement
+  return (
+    el &&
+    ((el.tagName === "INPUT" &&
+      !["checkbox", "radio", "button", "submit", "color", "range", "file"].includes(el["type"])) ||
+      el.tagName === "TEXTAREA" ||
+      el["isContentEditable"])
+  )
 }
