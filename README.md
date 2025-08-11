@@ -11,7 +11,6 @@ This application allows you to analyze chess positions and games with two differ
 
 - Auto-analyze
   - Figure out how to do this
-- New app title
 - Fix: Canceling in promotion dialog
 - Fix: implement draw by threefold repetition and 50-move rule
 

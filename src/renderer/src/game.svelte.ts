@@ -59,7 +59,7 @@ export class NodeData implements pgn.PgnNodeData {
   /** Long algebraic notation for the move. */
   lan: string
   /** The FEN string for the position. */
-  fen: string
+  fen: string = ""
   /** Side to move. */
   turn: "w" | "b"
   /** Legal move analyses: key is LAN, value iseval, depth, Maia policy, ... */
@@ -76,12 +76,11 @@ export class NodeData implements pgn.PgnNodeData {
       this.fen = fen.INITIAL_FEN
     }
     this.turn = this.fen.split(" ")[1] as "w" | "b"
-    const pos = chessFromFen(this.fen)
-    this.moveNumber = this.turn === "w" ? pos.fullmoves - 1 : pos.fullmoves
-    this.moveAnalyses = allLegalMoves(pos).map((move): [string, MoveAnalysis] => {
-      return [makeUci(move), { pv: [makeSan(pos, move)] }]
-    })
+    this.moveNumber = this.turn === "w" ? this.pos.fullmoves - 1 : this.pos.fullmoves
+    this.resetAnalysis()
   }
+
+  pos: Chess = $derived(chessFromFen(this.fen))
 
   /** Current position's evaluation. */
   eval: Score = $derived(
@@ -128,6 +127,12 @@ export class NodeData implements pgn.PgnNodeData {
     }
     return res
   })
+
+  resetAnalysis() {
+    this.moveAnalyses = allLegalMoves(this.pos).map((move): [string, MoveAnalysis] => {
+      return [makeUci(move), { pv: [makeSan(this.pos, move)] }]
+    })
+  }
 }
 
 /** Reactive version of `pgn.Node`. */

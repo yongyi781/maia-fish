@@ -155,6 +155,25 @@ app.whenReady().then(async () => {
       ]
     },
     {
+      label: "Analysis",
+      submenu: [
+        {
+          label: "Forget analysis",
+          accelerator: "Ctrl+.",
+          click() {
+            mainWindow.webContents.send("forgetAnalysis")
+          }
+        },
+        {
+          label: "Forget all analysis",
+          accelerator: "Ctrl+Shift+.",
+          click() {
+            mainWindow.webContents.send("forgetAllAnalysis")
+          }
+        }
+      ]
+    },
+    {
       label: "Play",
       submenu: [
         {
@@ -200,14 +219,14 @@ app.whenReady().then(async () => {
   if (stockfishProcess) stockfishProcess.kill()
   stockfishProcess = spawn(config.stockfishPath)
   stockfishProcess.stdout.on("data", (data: Buffer) => {
-    mainWindow.webContents.send("stockfish-output", data.toString())
+    mainWindow.webContents.send("engine-output", data.toString())
   })
   stockfishProcess.stdin.write(`
 uci
 isready
 ucinewgame
 setoption name Threads value 14
-setoption name Hash value 2048
+setoption name Hash value 1024
 setoption name MultiPV value 256
 `)
   maiaModel = await InferenceSession.create(maia_rapid)

@@ -1,5 +1,5 @@
 import { fen } from "chessops"
-import { NodeData } from "./game.svelte"
+import { gameState, NodeData } from "./game.svelte"
 import { chessFromFen, pvUciToSan } from "./utils"
 import { Score } from "./types"
 
@@ -89,93 +89,99 @@ function parseUciInfo(line: string): UciInfo {
 export class Engine {
   /** Whether we are analyzing. This is different from whether the engine is running. */
   #analyzing = $state(false)
+  /** The main engine output listener. */
+  #off?: () => void
+  #stopOff?: () => void
   /** The engine's actual status. */
   status: "stopped" | "running" = $state("stopped")
-  /** Whether we are currently changing the position. */
   positionChanging = false
 
   get analyzing() {
     return this.#analyzing
   }
 
-  set analyzing(value) {
-    if (value !== this.#analyzing) {
-      if (value) {
-        this.#analyzing = true
-        window.api.engine.send("go")
-        this.status = "running"
-      } else {
-        this.#analyzing = false
-        window.api.engine.send("stop")
-      }
-    }
-  }
-
   /** Sends a "new game" command to the engine. Also stops analyzing. */
-  newGame() {
-    this.analyzing = false
+  async newGame() {
+    await this.stop()
     window.api.engine.send("ucinewgame")
   }
 
-  public setOption(name: string, value: string): void {
+  setOption(name: string, value: string): void {
     window.api.engine.send(`setoption name ${name} value ${value}`)
   }
 
-  /** Updates the engine position. */
-  updateEnginePosition(initialFen: string, moves: string[]) {
-    let shouldStartEngine = false
-    if (this.analyzing) {
-      this.positionChanging = true
-      if (this.status === "running") {
-        window.api.engine.send("stop")
-      } else {
-        shouldStartEngine = true
-        this.positionChanging = false
+  /** Starts the engine. */
+  go() {
+    if (this.status === "running") return
+    this.#analyzing = true
+    this.#off?.()
+    this.#off = undefined
+    const data = gameState.currentNode.data
+    this.#off = window.electron.ipcRenderer.on("engine-output", (_, output: string) => {
+      try {
+        for (let line of output.split("\n")) this.processLine(line, data)
+      } catch (error) {
+        console.error(error)
       }
-    }
+    })
+    window.api.engine.send("go")
+    this.status = "running"
+  }
 
+  /** Stops the engine. Listens for `bestmove`. */
+  async stop(analyzeOff = true) {
+    if (analyzeOff) this.#analyzing = false
+    this.#off?.()
+    this.#off = undefined
+    if (this.status === "stopped" || this.#stopOff) return
+    window.api.engine.send("stop")
+    return new Promise<void>((resolve) => {
+      this.#stopOff = window.electron.ipcRenderer.on("engine-output", (_, output: string) => {
+        for (let line of output.split("\n")) {
+          if (line.startsWith("bestmove")) {
+            this.status = "stopped"
+            this.#stopOff?.()
+            this.#stopOff = undefined
+            resolve()
+            break
+          }
+        }
+      })
+    })
+  }
+
+  /** Updates the engine position. */
+  async updatePosition(initialFen: string, moves: string[]) {
+    const promise = this.stop(false)
     let command = `position ${initialFen === fen.INITIAL_FEN ? "startpos" : "fen " + initialFen}`
     if (moves.length > 0) command += ` moves ${moves.join(" ")}`
     window.api.engine.send(command)
-    if (shouldStartEngine) {
-      window.api.engine.send("go")
-      this.status = "running"
-    }
+    await promise
+    if (this.analyzing) this.go()
   }
 
   /** Toggles analyze mode. */
-  toggleAnalyze() {
-    this.analyzing = !this.analyzing
+  async toggleAnalyze() {
+    if (this.analyzing) return this.stop()
+    this.go()
   }
 
   /** Main method to process Stockfish output and save the info in the node data. */
   processLine(line: string, data: NodeData) {
-    try {
-      if (!this.positionChanging && line.startsWith("info depth") && line.includes(" pv ")) {
-        const info = parseUciInfo(line)
-        const lan = info.pv[0]
-        const entry = data.moveAnalyses.find((m) => m[0] === lan)?.[1]
+    if (line.startsWith("info depth") && line.includes(" pv ")) {
+      const info = parseUciInfo(line)
+      const lan = info.pv[0]
+      const entry = data.moveAnalyses.find((m) => m[0] === lan)?.[1]
 
-        if (entry && (!entry.depth || info.depth >= entry.depth)) {
-          // Convert the PV to SAN.
-          info.pv = pvUciToSan(chessFromFen(data.fen), info.pv)
-          Object.assign(entry, info)
-        }
-      } else if (line.startsWith("bestmove")) {
-        // "bestmove" = engine stopped.
-        if (this.analyzing && this.positionChanging) {
-          // Debounce
-          // clearTimeout(pendingEngineTimeout)
-          this.positionChanging = false
-          window.api.engine.send("go")
-          this.status = "running"
-        } else {
-          // Stopped on its own (e.g. reached depth 245).
-          this.status = "stopped"
-        }
+      if (entry && (!entry.depth || info.depth >= entry.depth)) {
+        // Convert the PV to SAN.
+        info.pv = pvUciToSan(chessFromFen(data.fen), info.pv)
+        Object.assign(entry, info)
       }
-    } catch (error) {
-      throw error
+    } else if (line.startsWith("bestmove")) {
+      this.status = "stopped"
+      this.#off?.()
+      this.#off = undefined
     }
   }
 }

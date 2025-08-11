@@ -46,7 +46,7 @@
     // Populate Maia evaluations
     const analyses = data.moveAnalyses
     if (analyses.length !== 0 && analyses[0][1].maiaProbability === undefined) populateMaiaProbabilities()
-    engine.updateEnginePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
+    engine.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
   }
 
   function handleWheel(e: WheelEvent) {
@@ -58,16 +58,12 @@
     }
   }
 
-  async function handleAnalyzeClicked() {
-    engine.toggleAnalyze()
-  }
-
   function handleKeyDown(e: KeyboardEvent) {
     if (isTextFocused()) return
     switch (e.key) {
       case " ":
         e.preventDefault()
-        handleAnalyzeClicked()
+        engine.toggleAnalyze()
         break
       case "ArrowLeft":
         goBack()
@@ -140,7 +136,7 @@
   }
 
   /** Loads a FEN or PGN. */
-  function loadFenOrPgn(text: string) {
+  async function loadFenOrPgn(text: string) {
     const setup = parseFen(text)
     if (setup.isOk) {
       loadFen(text)
@@ -153,7 +149,7 @@
       }
       gameState.currentNode = gameState.game.moves
     }
-    engine.analyzing = false
+    await engine.stop()
     engine.newGame()
   }
 
@@ -312,6 +308,13 @@
       orientation = chessboard.getState().orientation
     })
 
+    window.electron.ipcRenderer.on("forgetAnalysis", async () => {
+      await engine.stop()
+      gameState.currentNode.data.resetAnalysis()
+    })
+
+    window.electron.ipcRenderer.on("forgetAllAnalysis", () => {})
+
     window.electron.ipcRenderer.on("playTopEngineMove", () => {
       const moves = gameState.currentNode.data.topEngineMovesUci
       if (moves.length > 0) gameState.makeMove(parseUci(moves[0]) as NormalMove)
@@ -332,15 +335,6 @@
 
     window.electron.ipcRenderer.on("playRandomMove", () => {
       gameState.makeMove(randomChoice(allLegalMoves(gameState.chess)))
-    })
-
-    window.electron.ipcRenderer.on("stockfish-output", (_, output: string) => {
-      const data = gameState.currentNode.data
-      try {
-        for (let line of output.split("\n")) engine.processLine(line, data)
-      } catch (error) {
-        console.error(error)
-      }
     })
 
     return () => {
@@ -369,7 +363,7 @@
     }
   }}
   onbeforeunload={() => {
-    engine.analyzing = false
+    engine.stop()
   }}
 />
 
@@ -394,7 +388,9 @@
         class="flex p-1 h-16 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
           ? 'bg-green-950 outline-green-900'
           : ' outline-zinc-700'}"
-        onclick={handleAnalyzeClicked}
+        onclick={() => {
+          engine.toggleAnalyze()
+        }}
       >
         {#if gameState.chess.isEnd()}
           <div class="font-bold text-3xl w-full text-amber-200">

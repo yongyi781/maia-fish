@@ -92,7 +92,7 @@
           {
             fill: markerFill,
             stroke: markerStroke,
-            radius: 5,
+            radius: 4,
             x,
             y: canvas.height - statusBarHeight / 2
           }
