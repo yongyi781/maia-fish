@@ -43,22 +43,28 @@
   function hideLines() {
     return data.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack
   }
+
+  function handleClick(e: MouseEvent, entry: [string, MoveAnalysis]) {
+    if (e.button === 0) {
+      gameState.makeMove(parseUci(entry[0]))
+    } else if (e.button === 1 || e.button === 2) {
+      const res = gameState.currentNode.addMoves(entry[1].pv)
+      if (e.button === 2) gameState.userSetCurrentNode(res)
+    }
+  }
 </script>
 
 <div class="relative h-full">
   <div class="absolute max-h-full w-full overflow-auto pt-2">
     {#each sortedAnalyses(data) as entry}
-      <button
-        class="flex w-full items-center gap-2 hover:bg-zinc-700"
-        onclick={() => gameState.makeMove(parseUci(entry[0]))}
-      >
+      <button class="flex w-full items-center gap-2 hover:bg-zinc-700" onmousedown={(e) => handleClick(e, entry)}>
         <Score class="min-w-12 text-right" score={entry[1].score} best={data.eval} turn={data.turn} />
         <div class="min-w-12 text-right" style="color: {color(entry[1])}">
           {humanProbability(entry[1]) === undefined ? "" : (humanProbability(entry[1]) * 100).toFixed()}%
         </div>
         <div class="min-w-6 text-center text-xs text-gray-400">{entry[1].depth}</div>
         <div class="relative flex flex-1 items-center">
-          <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis">
+          <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis" title={entry[1].pv.join(" ")}>
             {#if !hideLines()}
               {#each entry[1].pv as move, i}
                 <span style="color: {(i + (data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span>&nbsp;

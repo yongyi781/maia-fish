@@ -161,7 +161,7 @@
       0,
       Math.min(currentLine.length - 1, currentLine.length - 1 - Math.round((x / (canvas.width - 5)) * getDenom()))
     )
-    gameState.currentNode = gameState.currentLine[index]
+    gameState.userSetCurrentNode(gameState.currentLine[index])
   }
 
   onMount(() => {

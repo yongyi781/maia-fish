@@ -1,17 +1,10 @@
 import { Chess, fen, makeUci, type NormalMove, pgn } from "chessops"
 import { makeFen } from "chessops/fen"
+import { defaultHeaders } from "chessops/pgn"
 import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
-import { Score } from "./types"
-import {
-  allLegalMoves,
-  chessFromFen,
-  classifyMove,
-  existsBrilliantMove,
-  moveQuality,
-  normalizeMove,
-  parseUci
-} from "./utils"
 import { config } from "./config.svelte"
+import { Score } from "./types"
+import { allLegalMoves, chessFromFen, classifyMove, existsBrilliantMove, normalizeMove, parseUci } from "./utils"
 
 function makeLichessUrl(fen: string) {
   const url = new URL("https://explorer.lichess.ovh/lichess")
@@ -204,6 +197,12 @@ export class Node implements pgn.Node<NodeData> {
     for (const child of this.mainlineNodes()) yield child.data
   }
 
+  end(): Node {
+    let node: Node = this
+    while (node.children.length) node = node.children[0]
+    return node
+  }
+
   /** Returns the path from the root to this node. */
   pathToRoot(): Node[] {
     let node: Node = this
@@ -228,9 +227,29 @@ export class Node implements pgn.Node<NodeData> {
     return path.map((n) => n.data.lan)
   }
 
-  end(): Node {
+  /** Adds a list of moves. */
+  addMoves(moves: string[]) {
+    const pos = chessFromFen(this.data.fen)
     let node: Node = this
-    while (node.children.length) node = node.children[0]
+    for (let san of moves) {
+      const move = normalizeMove(pos, parseSan(pos, san) as NormalMove)
+      if (!move) {
+        console.warn(`Unexpected illegal move: ${san}`)
+        continue
+      }
+      pos.play(move)
+      let child = node.children.find((c) => c.data.san === san)
+      if (!child) {
+        child = new Node({
+          fen: makeFen(pos.toSetup()),
+          lan: makeUci(move),
+          san: san,
+          parent: node
+        })
+        node.children.push(child)
+      }
+      node = child
+    }
     return node
   }
 
@@ -300,17 +319,15 @@ export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>, initialFen: stri
 export class GameState {
   /** The game tree, containing all data such as evals. */
   game = $state({
-    headers: new Map([
-      ["Event", "World Chess Championship"],
-      ["White", "Stockfish"],
-      ["Black", "Magnus Carlsen"]
-    ]),
+    headers: defaultHeaders(),
     moves: new Node()
   })
   /** The chess position. */
   chess = $state(Chess.default())
   /** The currently selected node. */
   currentNode = $state(new Node({}))
+  maiaAutoMode: "white" | "black" | "off" = $state("off")
+
   /** The line containing the currently selected node. */
   currentLine = $derived(this.currentNode.end().pathToRoot())
   /** Nodes in the mainline. */
@@ -323,6 +340,12 @@ export class GameState {
     return this.game.moves
   }
 
+  /** Sets the current node due to user interaction. */
+  userSetCurrentNode(node: Node) {
+    this.maiaAutoMode = "off"
+    this.currentNode = node
+  }
+
   /** Performs a move. */
   makeMove(m: NormalMove) {
     const node = gameState.currentNode
@@ -331,23 +354,17 @@ export class GameState {
       throw new Error("Invalid SAN in makeMove")
     }
     const lan = makeUci(m)
-    let exists = false
-    for (let c of node.children)
-      if (c.data.san === san) {
-        gameState.currentNode = c
-        exists = true
-        break
-      }
-    if (!exists) {
-      const child = new Node({
+    let child = node.children.find((c) => c.data.san === san)
+    if (!child) {
+      child = new Node({
         fen: makeFen(this.chess.toSetup()),
         lan: lan,
         san: san,
         parent: node
       })
       node.children.push(child)
-      gameState.currentNode = child
     }
+    gameState.currentNode = child
   }
 
   /** Navigates one move forward. Returns whether a move was made. */

@@ -2,8 +2,8 @@
   import type { DrawShape } from "chessground/draw"
   import type { Key } from "chessground/types"
   import { makeSquare, type NormalMove } from "chessops"
-  import { parseFen } from "chessops/fen"
-  import { makePgn, parsePgn } from "chessops/pgn"
+  import { INITIAL_FEN, parseFen } from "chessops/fen"
+  import { defaultHeaders, makePgn, parsePgn } from "chessops/pgn"
   import { onMount, untrack } from "svelte"
   import "./app.css"
   import Chessboard from "./components/Chessboard.svelte"
@@ -24,22 +24,22 @@
     isTextFocused,
     moveQualities,
     moveQuality,
-    randomChoice,
-    randomWeightedChoice,
-    parseUci,
+    nagToColor,
     nagToSymbol,
-    nagToColor
+    parseUci,
+    randomChoice,
+    randomWeightedChoice
   } from "./utils"
 
+  const engine = new Engine()
   let chessboard: Chessboard
   let evalBar: EvalBar
   /** Reactive orientation variable for the eval bar. */
   let orientation: "white" | "black" = $state("white")
-  const engine = new Engine()
   /** A timeout for debouncing engine commands. */
   // let pendingEngineTimeout: NodeJS.Timeout
 
-  function handleCurrentNodeChanged() {
+  async function handleCurrentNodeChanged() {
     const data = gameState.currentNode.data
     gameState.chess = chessFromFen(data.fen)
     let lastMove: NormalMove | undefined
@@ -49,25 +49,42 @@
     chessboard?.load(gameState.chess, lastMove)
     // Populate Maia evaluations
     const analyses = data.moveAnalyses
-    if (analyses.length !== 0 && analyses[0][1].maiaProbability === undefined) populateMaiaProbabilities()
     engine.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
+    if (analyses.length !== 0 && analyses[0][1].maiaProbability === undefined) await populateMaiaProbabilities()
+    maybePlayMaiaMove()
+  }
+
+  function maybePlayMaiaMove() {
+    if (gameState.maiaAutoMode === (gameState.currentNode.data.turn === "w" ? "white" : "black")) {
+      playWeightedHumanMove()
+    }
   }
 
   function handleWheel(e: WheelEvent) {
     e.preventDefault()
     if (e.deltaY > 0) {
-      gameState.forward()
+      forward()
     } else if (e.deltaY < 0) {
-      gameState.back()
+      back()
     }
   }
 
   function deleteCurrentNode() {
+    gameState.maiaAutoMode = "off"
     const parent = gameState.currentNode.data.parent
     if (parent) {
       parent.children = parent.children.filter((c) => c !== gameState.currentNode)
-      gameState.currentNode = parent
+      gameState.userSetCurrentNode(parent)
     }
+  }
+
+  function back() {
+    gameState.maiaAutoMode = "off"
+    gameState.back()
+  }
+  function forward() {
+    gameState.maiaAutoMode = "off"
+    gameState.forward()
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -78,10 +95,10 @@
         engine.toggleAnalyze()
         break
       case "ArrowLeft":
-        gameState.back()
+        back()
         break
       case "ArrowRight":
-        gameState.forward()
+        forward()
         break
       case "Delete":
         deleteCurrentNode()
@@ -94,6 +111,10 @@
         break
       case "b":
         config.value.hideLinesForBlack = !config.value.hideLinesForBlack
+        break
+      case "F9":
+        gameState.maiaAutoMode = gameState.chess.turn
+        maybePlayMaiaMove()
         break
       case "F12":
         engine.autoMode = e.shiftKey ? "backward" : "forward"
@@ -122,17 +143,18 @@
     }
   }
 
-  function loadFen(fen: string) {
+  async function loadFen(fen: string) {
+    gameState.maiaAutoMode = "off"
+    await engine.newGame()
+    const headers = defaultHeaders()
+    if (fen !== INITIAL_FEN) {
+      headers.set("FEN", fen)
+    }
     gameState.game = {
-      headers: new Map([
-        ["Event", "World Chess Championship"],
-        ["White", "Stockfish"],
-        ["Black", "Magnus Carlsen"],
-        ["FEN", fen]
-      ]),
+      headers,
       moves: new Node({ fen: fen })
     }
-    gameState.currentNode = gameState.game.moves
+    gameState.userSetCurrentNode(gameState.game.moves)
     evalBar.reset()
   }
 
@@ -150,7 +172,7 @@
     let detail = ""
     const white = gameState.game.headers.get("White")
     const black = gameState.game.headers.get("Black")
-    if (white && black) detail = `${white} vs ${black}`
+    if (white && black && white !== "?" && black !== "?") detail = `${white} vs ${black}`
     if (engine.analyzing) detail += " (Analyzing...)"
     return detail.length === 0 ? appName : `${appName} - ${detail}`
   }
@@ -169,7 +191,7 @@
         headers: pgns[0].headers,
         moves: fromPgnNode(pgns[0].moves, pgns[0].headers.get("FEN"))
       }
-      gameState.currentNode = gameState.game.moves
+      gameState.userSetCurrentNode(gameState.game.moves)
     }
     await engine.stop()
     engine.newGame()
@@ -182,12 +204,18 @@
     const pos = chessFromFen(gameState.root.end().data.fen)
     const winner = pos.outcome()?.winner
     if (winner) {
-      gameState.game.headers.set("Result", winner === "white" ? "1-0" : "0-1")
-    } else {
-      gameState.game.headers.delete("Result")
+      gameState.game.headers.set("Result", winner === "white" ? "1-0" : winner === "black" ? "0-1" : "1/2-1/2")
     }
     const pgn = makePgn(gameState.game)
     e.clipboardData.setData("text/plain", pgn)
+  }
+
+  function playWeightedHumanMove() {
+    const entries = gameState.currentNode.data.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
+    if (entries.length === 0) return
+    const moves: [string, number][] = entries.map((a) => [a[0], humanProbability(a[1])])
+    const move = randomWeightedChoice(moves)
+    gameState.makeMove(parseUci(move))
   }
 
   /** Main position changed handler. */
@@ -279,26 +307,19 @@
   onMount(() => {
     gameState.currentNode = gameState.game.moves
 
-    window.electron.ipcRenderer.on("newGame", () => {
-      gameState.game = {
-        headers: new Map([
-          ["Event", "World Chess Championship"],
-          ["White", "Stockfish"],
-          ["Black", "Magnus Carlsen"]
-        ]),
-        moves: new Node()
-      }
-      gameState.currentNode = gameState.game.moves
+    window.electron.ipcRenderer.on("newGame", async () => {
+      await engine.newGame()
+      loadFen(INITIAL_FEN)
+      gameState.userSetCurrentNode(gameState.game.moves)
       evalBar.reset()
-      engine.newGame()
     })
 
     window.electron.ipcRenderer.on("gotoRoot", () => {
-      gameState.currentNode = gameState.game.moves
+      gameState.userSetCurrentNode(gameState.game.moves)
     })
 
     window.electron.ipcRenderer.on("gotoEnd", () => {
-      gameState.currentNode = gameState.currentNode.end()
+      gameState.userSetCurrentNode(gameState.currentNode.end())
     })
 
     window.electron.ipcRenderer.on("prevVariation", () => {
@@ -306,7 +327,7 @@
       if (node.isRoot()) return
       const siblings = node.data.parent.children
       const i = siblings.indexOf(node)
-      gameState.currentNode = siblings[(i + siblings.length - 1) % siblings.length]
+      gameState.userSetCurrentNode(siblings[(i + siblings.length - 1) % siblings.length])
     })
 
     window.electron.ipcRenderer.on("nextVariation", () => {
@@ -314,7 +335,7 @@
       if (node.isRoot()) return
       const siblings = node.data.parent.children
       const i = siblings.indexOf(node)
-      gameState.currentNode = siblings[(i + 1) % siblings.length]
+      gameState.userSetCurrentNode(siblings[(i + 1) % siblings.length])
     })
 
     window.electron.ipcRenderer.on("returnToMainline", () => {
@@ -326,7 +347,7 @@
         }
         node = node.data.parent
       }
-      gameState.currentNode = res
+      gameState.userSetCurrentNode(res)
     })
 
     window.electron.ipcRenderer.on("promoteToMainline", () => {
@@ -376,13 +397,7 @@
       if (move) gameState.makeMove(parseUci(move))
     })
 
-    window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
-      const entries = gameState.currentNode.data.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
-      if (entries.length === 0) return
-      const moves: [string, number][] = entries.map((a) => [a[0], humanProbability(a[1])])
-      const move = randomWeightedChoice(moves)
-      gameState.makeMove(parseUci(move))
-    })
+    window.electron.ipcRenderer.on("playWeightedHumanMove", playWeightedHumanMove)
 
     window.electron.ipcRenderer.on("playRandomMove", () => {
       gameState.makeMove(randomChoice(allLegalMoves(gameState.chess)))
@@ -511,6 +526,7 @@
         <div class="flex items-center gap-2">
           <label for="depth" class="text-sm text-zinc-400 dark:text-zinc-500">Depth</label>
           <input
+            id="depth"
             type="number"
             value={config.value.autoAnalyzeDepthLimit}
             min="0"
@@ -536,6 +552,32 @@
             onclick={() => (engine.autoMode = engine.autoMode === "forward" ? "off" : "forward")}
           >
             ▶▶
+          </button>
+        </div>
+        <div class="flex items-center justify-center gap-0">
+          <button
+            class="rounded-l-md px-2 py-1 {gameState.maiaAutoMode === 'white'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
+            title="Shortcut: F9 (when white)"
+            onclick={() => {
+              gameState.maiaAutoMode = gameState.maiaAutoMode === "white" ? "off" : "white"
+              maybePlayMaiaMove()
+            }}
+          >
+            Maia white
+          </button>
+          <button
+            class="rounded-r-md px-2 py-1 {gameState.maiaAutoMode === 'black'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
+            title="Shortcut: F9 (when black)"
+            onclick={() => {
+              gameState.maiaAutoMode = gameState.maiaAutoMode === "black" ? "off" : "black"
+              maybePlayMaiaMove()
+            }}
+          >
+            Maia black
           </button>
         </div>
       </div>

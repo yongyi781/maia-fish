@@ -173,22 +173,22 @@ export function moveQuality(score: Score, best: Score) {
 /** Returns a random element from an array, weighted by its weight. */
 export function randomWeightedChoice<T>(arr: [T, number][]) {
   let totalWeight = 0
-  for (const o of arr) {
-    totalWeight += o[1]
+  for (const item of arr) {
+    totalWeight += item[1]
   }
   if (totalWeight <= 0) {
-    return undefined
+    throw new Error("Total weight must be positive.")
   }
 
   const t = totalWeight * Math.random()
   let total = 0
-  for (const o of arr) {
-    // The order doesn't matter at all when you think about it. No need to sort.
-    total += o[1]
-    if (total > t) {
-      return o[0]
+  for (const item of arr) {
+    total += item[1]
+    if (total >= t) {
+      return item[0]
     }
   }
+  throw new Error("Unexpected error in weighted choice.")
 }
 
 /**
