@@ -17,6 +17,7 @@ This application allows you to analyze chess positions and games simultaneously 
 - **PGN support**: Load your own games in PGN format to analyze them.
 - **Interactive board**: Play through moves and see the engines' analysis update in real-time.
 - **Configurable engine settings**: Adjust the depth and other parameters for Stockfish.
+- **Tricky positions**: With the help of Maia's weights, see at a glance which positions are dangerous for humans.
 - **Brilliant moves**: Using Maia's weights, we can detect brilliant moves more reliably than simply detecting sacrifices.
 
 ## Todo
