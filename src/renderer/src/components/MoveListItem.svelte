@@ -32,7 +32,7 @@
     'text-gray-400 dark:text-gray-600'}"
   style:background-color={node === currentNode ? bgColor() : ""}
   style:outline-color={outlineColor()}
-  style:color={nagToColor[node.data.engineNag]}
+  style:color={inCurrentLine ? nagToColor[node.data.engineNag] : undefined}
   onmousedown={setCurrentNode}
   onclick={setCurrentNode}
 >
