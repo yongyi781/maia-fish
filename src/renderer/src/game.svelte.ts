@@ -1,9 +1,30 @@
-import { Chess, fen, makeUci, type NormalMove, parseUci, pgn } from "chessops"
+import { Chess, fen, makeUci, type NormalMove, pgn } from "chessops"
 import { makeFen } from "chessops/fen"
 import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
 import { Score } from "./types"
-import { allLegalMoves, chessFromFen, normalizeMove } from "./utils"
+import {
+  allLegalMoves,
+  chessFromFen,
+  classifyMove,
+  existsBrilliantMove,
+  moveQuality,
+  normalizeMove,
+  parseUci
+} from "./utils"
 import { config } from "./config.svelte"
+
+function makeLichessUrl(fen: string) {
+  const url = new URL("https://explorer.lichess.ovh/lichess")
+  const params = new URLSearchParams()
+  params.append("variant", "standard")
+  params.append("topGames", "0")
+  params.append("recentGames", "0")
+  params.append("speeds", config.value.lichessBookSpeeds.toString())
+  params.append("ratings", config.value.lichessBookRatings.toString())
+  params.append("fen", fen)
+  url.search = params.toString()
+  return url
+}
 
 /** Converts an `Score` to a raw evaluation, for comparison purposes. */
 export function rawEval(e: Score | undefined) {
@@ -130,6 +151,20 @@ export class NodeData implements pgn.PgnNodeData {
     return res
   })
 
+  /** The engine annotation based on this move's quality. */
+  engineNag = $derived.by(() => {
+    const p = this.parent
+    if (!p || !p.data.eval) return 0
+    const score = this.parent.data.moveAnalyses[this.parent.data.lanToIndex.get(this.lan)][1]?.score
+    const c = classifyMove(score, p.data.eval)
+    if (!c) return 0
+    if (c === "best" && existsBrilliantMove(p.data)) return 3
+    if (c === "inaccuracy") return 6
+    if (c === "mistake") return 2
+    if (c === "blunder") return 4
+    return 0
+  })
+
   resetAnalysis() {
     if (this.moveAnalyses.length === 0) {
       this.moveAnalyses = allLegalMoves(this.pos).map((move): [string, MoveAnalysis] => {
@@ -220,7 +255,7 @@ export class Node implements pgn.Node<NodeData> {
     if (totalGames < config.value.lichessThreshold) return
     const pos = chessFromFen(data.fen)
     for (const [lan, a] of data.moveAnalyses) {
-      const move = json.moves.find((m: any) => makeUci(normalizeMove(pos, parseUci(m.uci) as NormalMove)) === lan)
+      const move = json.moves.find((m: any) => makeUci(normalizeMove(pos, parseUci(m.uci))) === lan)
       if (!move) a.lichessProbability = 0
       else a.lichessProbability = (move.white + move.draws + move.black) / totalGames
     }
@@ -335,16 +370,3 @@ export class GameState {
 }
 
 export const gameState = new GameState()
-
-function makeLichessUrl(fen: string) {
-  const url = new URL("https://explorer.lichess.ovh/lichess")
-  const params = new URLSearchParams()
-  params.append("variant", "standard")
-  params.append("topGames", "0")
-  params.append("recentGames", "0")
-  params.append("speeds", config.value.lichessBookSpeeds.toString())
-  params.append("ratings", config.value.lichessBookRatings.toString())
-  params.append("fen", fen)
-  url.search = params.toString()
-  return url
-}

@@ -2,7 +2,7 @@ import { app } from "electron"
 import { join } from "path"
 import { readFileSync, writeFileSync, existsSync } from "fs"
 
-const CONFIG_VERSION = 4
+const CONFIG_VERSION = 5
 
 const defaultConfig = {
   version: CONFIG_VERSION,
@@ -14,7 +14,8 @@ const defaultConfig = {
   humanSort: false,
   hideLinesForWhite: false,
   hideLinesForBlack: false,
-  autoAnalyzeDepthLimit: 12
+  autoAnalyzeDepthLimit: 12,
+  analysisUpdateInterval: 40
 }
 
 export type AppConfig = typeof defaultConfig

@@ -117,17 +117,19 @@
         }
       }
 
-      // Human evaluation
+      // Human difficulty rating marker
       if (lEval && lHumanEval && lHumanEval.value) {
         const c = classifyMove(lHumanEval, lEval)
-        const q = c === "best" ? moveQualities.good : moveQualities[c]
-        markers.push({
-          fill: q.color,
-          stroke: q.color,
-          radius: 4,
-          x,
-          y: canvas.height - statusBarHeight / 2
-        })
+        if (c) {
+          const q = c === "best" ? moveQualities.good : moveQualities[c]
+          markers.push({
+            fill: q.color,
+            stroke: q.color,
+            radius: 4,
+            x,
+            y: canvas.height - statusBarHeight / 2
+          })
+        }
       }
       prevWinProb = winProb
     }
@@ -187,12 +189,12 @@
 
 <div
   {...restProps}
-  class="h-full relative rounded-sm {className}"
+  class="relative h-full rounded-sm {className}"
   style="border-color: {gameState.isMainline ? mainlineColor : variationColor};"
 >
   <canvas
     bind:this={canvas}
-    class="absolute w-full h-full"
+    class="absolute h-full w-full"
     onmousedown={(e) => {
       handleClick(e)
       dragging = true

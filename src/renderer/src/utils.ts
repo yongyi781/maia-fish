@@ -1,4 +1,4 @@
-import { Chess, NormalMove, parseUci, Role, squareRank } from "chessops"
+import { Chess, NormalMove, parseUci as cParseUci, Role, squareRank } from "chessops"
 import { castlingSide } from "chessops/chess"
 import { parseFen } from "chessops/fen"
 import { makeSanAndPlay } from "chessops/san"
@@ -16,6 +16,11 @@ export function randInt(low: number, high: number) {
 
 export function randomChoice<T>(arr: T[]) {
   return arr[randInt(0, arr.length - 1)]
+}
+
+/** Parses a UCI move string. */
+export function parseUci(str: string) {
+  return cParseUci(str) as NormalMove
 }
 
 /** Normalizes a move: e.g. castling is e1g1 instead of e1h1. */
@@ -131,8 +136,21 @@ export const moveQualities: { [key: string]: MoveQuality } = {
   }
 }
 
+export const nagToSymbol = ["", "!", "?", "!!", "??", "!?", "?!", "□"]
+export const nagToColor = [
+  "",
+  "blue",
+  moveQualities.mistake.color,
+  moveQualities.best.color,
+  moveQualities.blunder.color,
+  "purple",
+  moveQualities.inaccuracy.color,
+  ""
+]
+
 /** Determines the classification of a move (best, good, inaccuracy, mistake, blunder). */
 export function classifyMove(score: Score, best: Score) {
+  if (!isFinite(best?.value) || !isFinite(score?.value)) return undefined
   if (best.type === "mate" && score.type === "mate" && Math.sign(score.value) === Math.sign(best.value)) {
     return score.value === best.value ? "best" : "good"
   }

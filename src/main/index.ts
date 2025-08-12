@@ -1,4 +1,4 @@
-import { electronApp, is, optimizer } from "@electron-toolkit/utils"
+import { electronApp, is } from "@electron-toolkit/utils"
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
@@ -7,6 +7,7 @@ import icon from "../../resources/icon.ico?asset"
 import maia_rapid from "../../resources/maia_rapid.onnx?asset"
 import { loadConfig, saveConfig } from "./config"
 
+/** Engine output interval, in milliseconds. */
 let mainWindow: BrowserWindow
 let stockfishProcess: ChildProcessWithoutNullStreams
 let maiaModel: InferenceSession
@@ -75,13 +76,12 @@ app.whenReady().then(async () => {
     if (engineOutputTimeout) clearInterval(engineOutputTimeout)
     stockfishProcess = spawn(config.stockfishPath)
     let chunks: string[] = []
-    // 40 fps
     engineOutputTimeout = setInterval(() => {
       if (chunks.length > 0) {
         mainWindow.webContents.send("engine-output", chunks)
         chunks = []
       }
-    }, 25)
+    }, config.analysisUpdateInterval)
     stockfishProcess.stdout.on("data", (data: Buffer) => {
       chunks.push(...data.toString().split("\n"))
     })

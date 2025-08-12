@@ -1,5 +1,6 @@
 <script lang="ts">
   import { gameState, Node } from "../game.svelte"
+  import { nagToColor, nagToSymbol } from "../utils"
 
   interface Props {
     node: Node
@@ -31,13 +32,14 @@
     'text-gray-400 dark:text-gray-600'}"
   style:background-color={node === currentNode ? bgColor() : ""}
   style:outline-color={outlineColor()}
+  style:color={nagToColor[node.data.engineNag]}
   onmousedown={setCurrentNode}
   onclick={setCurrentNode}
 >
   {#if node.data.turn === "b"}
-    <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{node.data.moveNumber}.</span>
+    <span class="text-sm font-normal text-gray-400 dark:text-gray-500">{node.data.moveNumber}.</span>
   {:else if forceShowMoveNumber()}
-    <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{node.data.moveNumber}...</span>
+    <span class="text-sm font-normal text-gray-400 dark:text-gray-500">{node.data.moveNumber}...</span>
   {/if}
-  {node.data.san}</button
+  {node.data.san}{nagToSymbol[node.data.engineNag]}</button
 >

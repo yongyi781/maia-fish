@@ -1,6 +1,7 @@
 <script lang="ts">
   import { config } from "../config.svelte"
-  import { humanProbability, type MoveAnalysis, NodeData, rawEval } from "../game.svelte"
+  import { gameState, humanProbability, type MoveAnalysis, NodeData, rawEval } from "../game.svelte"
+  import { parseUci } from "../utils"
   import Score from "./Score.svelte"
 
   const { data }: { data: NodeData } = $props()
@@ -44,32 +45,20 @@
   }
 </script>
 
-<div class="rounded-md p-1 h-full">
-  <div class="flex gap-6 items-center justify-center p-2">
-    <div class="flex items-center gap-2" title="Shortcut: H">
-      <input type="checkbox" id="checkbox1" bind:checked={config.value.humanSort} />
-      <label for="checkbox1">Sort human</label>
-    </div>
-    <div class="flex items-center gap-2" title="Shortcut: W">
-      <input type="checkbox" id="checkbox2" bind:checked={config.value.hideLinesForWhite} />
-      <label for="checkbox2">Hide white lines</label>
-    </div>
-    <div class="flex items-center gap-2" title="Shortcut: B">
-      <input type="checkbox" id="checkbox3" bind:checked={config.value.hideLinesForBlack} />
-      <label for="checkbox3">Hide black lines</label>
-    </div>
-  </div>
-  <hr class="text-zinc-700" />
-  <div class="pt-2">
+<div class="relative h-full">
+  <div class="absolute max-h-full w-full overflow-auto pt-2">
     {#each sortedAnalyses(data) as entry}
-      <div class="flex gap-2 items-center">
-        <Score class="text-right min-w-12" score={entry[1].score} best={data.eval} turn={data.turn} />
-        <div class="text-right min-w-12" style="color: {color(entry[1])}">
+      <button
+        class="flex w-full items-center gap-2 hover:bg-zinc-700"
+        onclick={() => gameState.makeMove(parseUci(entry[0]))}
+      >
+        <Score class="min-w-12 text-right" score={entry[1].score} best={data.eval} turn={data.turn} />
+        <div class="min-w-12 text-right" style="color: {color(entry[1])}">
           {humanProbability(entry[1]) === undefined ? "" : (humanProbability(entry[1]) * 100).toFixed()}%
         </div>
-        <div class="text-xs text-gray-400 min-w-6 text-center">{entry[1].depth}</div>
-        <div class="relative flex-1 flex items-center">
-          <div class="absolute max-w-full text-ellipsis text-nowrap overflow-hidden">
+        <div class="min-w-6 text-center text-xs text-gray-400">{entry[1].depth}</div>
+        <div class="relative flex flex-1 items-center">
+          <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis">
             {#if !hideLines()}
               {#each entry[1].pv as move, i}
                 <span style="color: {(i + (data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span>&nbsp;
@@ -77,7 +66,7 @@
             {/if}
           </div>
         </div>
-      </div>
+      </button>
     {/each}
   </div>
 </div>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { DrawShape } from "chessground/draw"
   import type { Key } from "chessground/types"
-  import { makeSquare, type NormalMove, parseUci } from "chessops"
+  import { makeSquare, type NormalMove } from "chessops"
   import { parseFen } from "chessops/fen"
   import { makePgn, parsePgn } from "chessops/pgn"
   import { onMount, untrack } from "svelte"
@@ -25,7 +25,10 @@
     moveQualities,
     moveQuality,
     randomChoice,
-    randomWeightedChoice
+    randomWeightedChoice,
+    parseUci,
+    nagToSymbol,
+    nagToColor
   } from "./utils"
 
   let chessboard: Chessboard
@@ -41,7 +44,7 @@
     gameState.chess = chessFromFen(data.fen)
     let lastMove: NormalMove | undefined
     if (data.lan) {
-      lastMove = parseUci(data.lan) as NormalMove
+      lastMove = parseUci(data.lan)
     }
     chessboard?.load(gameState.chess, lastMove)
     // Populate Maia evaluations
@@ -202,32 +205,19 @@
     const shapes: DrawShape[] = []
 
     // Individual move quality
-    const parent = currentData.parent
-    if (parent && parent.data.eval) {
-      const a = parent.data.moveAnalyses[parent.data.lanToIndex.get(currentData.lan)]
-      if (a && a[1].score) {
-        const q = moveQuality(a[1].score, parent.data.eval)
-        if (q.threshold === 0) {
-          if (existsBrilliantMove(parent.data)) {
-            shapes.push({
-              orig: currentData.lan.slice(2, 4) as Key,
-              label: { text: "!!", fill: q.color }
-            })
-          }
-        } else if (q.threshold >= 0.1 && q.threshold < 9000) {
-          shapes.push({
-            orig: currentData.lan.slice(2, 4) as Key,
-            label: { text: q.annotation, fill: q.color }
-          })
-        }
-      }
+    const nag = currentData.engineNag
+    if (nagToColor[nag]) {
+      shapes.push({
+        orig: currentData.lan.slice(2, 4) as Key,
+        label: { text: nagToSymbol[nag], fill: nagToColor[nag] }
+      })
     }
 
     if (!(currentData.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack)) {
       // Actual move
       if (currentNode.children.length > 0) {
         const child = currentNode.children[0]
-        const move = parseUci(child.data.lan) as NormalMove
+        const move = parseUci(child.data.lan)
         shapes.push({
           orig: makeSquare(move.from) as Key,
           dest: makeSquare(move.to) as Key,
@@ -239,7 +229,7 @@
       // Top engine move
       const topEngineUcis = currentData.topEngineMovesUci
       for (let uci of topEngineUcis) {
-        const topMove = parseUci(uci) as NormalMove
+        const topMove = parseUci(uci)
         const shape: DrawShape = {
           orig: makeSquare(topMove.from),
           dest: makeSquare(topMove.to),
@@ -254,7 +244,7 @@
       // Top human move
       const topHumanUci = currentData.topHumanMoveUci
       if (topHumanUci) {
-        const topMove = parseUci(topHumanUci) as NormalMove
+        const topMove = parseUci(topHumanUci)
         const score = currentData.moveAnalyses[currentData.lanToIndex.get(topHumanUci)][1].score
         const best = currentData.eval
         const shape: DrawShape = {
@@ -378,12 +368,12 @@
 
     window.electron.ipcRenderer.on("playTopEngineMove", () => {
       const moves = gameState.currentNode.data.topEngineMovesUci
-      if (moves.length > 0) gameState.makeMove(parseUci(moves[0]) as NormalMove)
+      if (moves.length > 0) gameState.makeMove(parseUci(moves[0]))
     })
 
     window.electron.ipcRenderer.on("playTopHumanMove", () => {
       const move = gameState.currentNode.data.topHumanMoveUci
-      if (move) gameState.makeMove(parseUci(move) as NormalMove)
+      if (move) gameState.makeMove(parseUci(move))
     })
 
     window.electron.ipcRenderer.on("playWeightedHumanMove", () => {
@@ -391,7 +381,7 @@
       if (entries.length === 0) return
       const moves: [string, number][] = entries.map((a) => [a[0], humanProbability(a[1])])
       const move = randomWeightedChoice(moves)
-      gameState.makeMove(parseUci(move) as NormalMove)
+      gameState.makeMove(parseUci(move))
     })
 
     window.electron.ipcRenderer.on("playRandomMove", () => {
@@ -431,7 +421,7 @@
 <svelte:head><title>{title()}</title></svelte:head>
 
 <!-- Main layout -->
-<div class="h-screen flex flex-col p-1">
+<div class="flex h-screen flex-col p-1">
   <div class="flex gap-1">
     <!-- Left -->
     <div class="w-[576px]">
@@ -444,9 +434,9 @@
     </div>
     <EvalBar bind:this={evalBar} {orientation} />
     <!-- Right -->
-    <div class="flex flex-2/5 p-1 gap-2 flex-col max-h-[576px]">
+    <div class="flex max-h-[576px] flex-1 flex-col gap-2 p-1">
       <button
-        class="flex h-20 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
+        class="flex h-20 cursor-pointer items-center gap-3 rounded-xs outline transition-colors {engine.analyzing
           ? 'bg-green-950 outline-green-900'
           : ' outline-zinc-700'}"
         title="Shortcut: Space"
@@ -455,7 +445,7 @@
         }}
       >
         {#if gameState.chess.isEnd()}
-          <div class="font-bold text-3xl w-full text-amber-200">
+          <div class="w-full text-3xl font-bold text-amber-200">
             {#if gameState.chess.isCheckmate()}
               Checkmate, {gameState.currentNode.data.turn === "w" ? "black" : "white"} wins
             {:else if gameState.chess.isInsufficientMaterial()}
@@ -465,9 +455,9 @@
             {/if}
           </div>
         {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
-          <div class="font-bold text-3xl w-full">Analyze</div>
+          <div class="w-full text-3xl font-bold">Analyze</div>
         {:else}
-          <div class="font-bold text-3xl text-nowrap w-24 text-center">
+          <div class="w-24 text-center text-3xl font-bold text-nowrap">
             {formatScore(gameState.currentNode.data.turn, gameState.currentNode.data.eval)}
           </div>
           <div>
@@ -496,9 +486,26 @@
           </div>
         {/if}
       </button>
-      <div class="outline outline-zinc-700 rounded-sm flex-3/5 overflow-auto">
+      <div class="flex h-1/2 flex-1/2 shrink-0 flex-col rounded-sm outline outline-zinc-700">
+        <div class="flex items-center justify-center gap-6 p-2">
+          <div class="flex items-center gap-2" title="Shortcut: H">
+            <input type="checkbox" id="checkbox1" bind:checked={config.value.humanSort} />
+            <label for="checkbox1">Sort human</label>
+          </div>
+          <div class="flex items-center gap-2" title="Shortcut: W">
+            <input type="checkbox" id="checkbox2" bind:checked={config.value.hideLinesForWhite} />
+            <label for="checkbox2">Hide white lines</label>
+          </div>
+          <div class="flex items-center gap-2" title="Shortcut: B">
+            <input type="checkbox" id="checkbox3" bind:checked={config.value.hideLinesForBlack} />
+            <label for="checkbox3">Hide black lines</label>
+          </div>
+        </div>
+        <hr class="mx-1 text-zinc-700" />
         <!-- Infobox -->
-        <Infobox data={gameState.currentNode.data} />
+        <div class="flex-1">
+          <Infobox data={gameState.currentNode.data} />
+        </div>
       </div>
       <div class="flex justify-center gap-3">
         <div class="flex items-center gap-2">
@@ -508,23 +515,23 @@
             value={config.value.autoAnalyzeDepthLimit}
             min="0"
             oninput={(e) => (config.value.autoAnalyzeDepthLimit = Number(e.currentTarget.value))}
-            class="w-16 px-2 py-1 rounded-md outline outline-zinc-800 dark:border-zinc-600"
+            class="w-16 rounded-md px-2 py-1 outline outline-zinc-800 dark:border-zinc-600"
           />
         </div>
         <div class="flex items-center justify-center gap-0">
           <button
-            class="px-2 py-1 rounded-l-md {engine.autoMode === 'backward'
+            class="rounded-l-md px-2 py-1 {engine.autoMode === 'backward'
               ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} transition-colors outline outline-zinc-800 dark:outline-zinc-600"
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
             title="Shortcut: Shift+F12"
             onclick={() => (engine.autoMode = engine.autoMode === "backward" ? "off" : "backward")}
           >
             ◀◀
           </button>
           <button
-            class="px-2 py-1 rounded-r-md {engine.autoMode === 'forward'
+            class="rounded-r-md px-2 py-1 {engine.autoMode === 'forward'
               ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} transition-colors outline outline-zinc-800 dark:outline-zinc-600"
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
             title="Shortcut: F12"
             onclick={() => (engine.autoMode = engine.autoMode === "forward" ? "off" : "forward")}
           >
@@ -532,7 +539,7 @@
           </button>
         </div>
       </div>
-      <div class="flex-1/3 overflow-auto outline outline-zinc-700 rounded-sm p-1">
+      <div class="flex-1/2 overflow-auto rounded-sm p-1 outline outline-zinc-700">
         <!-- Move list root -->
         <MoveList />
       </div>
