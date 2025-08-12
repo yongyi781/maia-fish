@@ -7,6 +7,10 @@ This application allows you to analyze chess positions and games with two differ
 - **Stockfish**: A powerful, traditional chess engine.
 - **Maia**: A neural network trained to emulate human play at different skill levels.
 
+## Screenshot
+<img width="1010" height="893" alt="image" src="https://github.com/user-attachments/assets/a7993cfb-9064-49f0-a15e-d5f2a7498902" />
+
+
 ## Todo
 
 - Decide what to do about human evaluation when MultiPV is less than max
