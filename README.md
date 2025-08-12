@@ -9,7 +9,6 @@ This application allows you to analyze chess positions and games with two differ
 
 ## Todo
 
-- Auto-analyze
 - Fix: Canceling in promotion dialog
 - Fix: implement draw by threefold repetition and 50-move rule
 

@@ -44,22 +44,23 @@
   }
 </script>
 
-<div>
-  <div class="flex gap-6 items-center justify-center">
-    <div class="flex items-center gap-2">
+<div class="rounded-md p-1 h-full">
+  <div class="flex gap-6 items-center justify-center p-2">
+    <div class="flex items-center gap-2" title="Shortcut: H">
       <input type="checkbox" id="checkbox1" bind:checked={config.value.humanSort} />
       <label for="checkbox1">Sort human</label>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2" title="Shortcut: W">
       <input type="checkbox" id="checkbox2" bind:checked={config.value.hideLinesForWhite} />
       <label for="checkbox2">Hide white lines</label>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2" title="Shortcut: B">
       <input type="checkbox" id="checkbox3" bind:checked={config.value.hideLinesForBlack} />
       <label for="checkbox3">Hide black lines</label>
     </div>
   </div>
-  <div>
+  <hr class="text-zinc-700" />
+  <div class="pt-2">
     {#each sortedAnalyses(data) as entry}
       <div class="flex gap-2 items-center">
         <Score class="text-right min-w-12" score={entry[1].score} best={data.eval} turn={data.turn} />

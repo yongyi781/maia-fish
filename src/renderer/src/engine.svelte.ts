@@ -1,7 +1,8 @@
 import { fen } from "chessops"
-import { gameState, type MoveAnalysis, NodeData } from "./game.svelte"
+import { gameState, NodeData } from "./game.svelte"
 import { Score } from "./types"
 import { chessFromFen, pvUciToSan } from "./utils"
+import { config } from "./config.svelte"
 
 export interface UciInfo {
   depth?: number
@@ -94,6 +95,7 @@ export class Engine {
   #stopOff?: () => void
   /** The engine's actual status. */
   status: "stopped" | "running" = $state("stopped")
+  autoMode: "forward" | "backward" | "off" = $state("off")
 
   constructor() {
     window.api.engine.start("")
@@ -182,6 +184,14 @@ export class Engine {
           // Convert the PV to SAN.
           info.pv = pvUciToSan(pos, info.pv)
           Object.assign(entry, info)
+        }
+        if (Math.max(entry.depth, info.depth) > config.value.autoAnalyzeDepthLimit && this.autoMode !== "off") {
+          if (this.autoMode === "forward") {
+            gameState.forward()
+          } else if (this.autoMode === "backward") {
+            gameState.back()
+          }
+          break
         }
       } else if (line.startsWith("bestmove")) {
         this.status = "stopped"

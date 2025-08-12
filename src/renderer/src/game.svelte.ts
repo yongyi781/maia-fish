@@ -228,8 +228,8 @@ export class Node implements pgn.Node<NodeData> {
 }
 
 /** Converts a `pgn.Node` to a `Node`. */
-export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>) {
-  const res = new Node()
+export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>, initialFen: string) {
+  const res = new Node({ fen: initialFen })
   const stack = [
     {
       before: pgnNode,
@@ -313,6 +313,16 @@ export class GameState {
       node.children.push(child)
       gameState.currentNode = child
     }
+  }
+
+  /** Navigates one move forward. */
+  forward() {
+    if (this.currentNode.children.length > 0) this.currentNode = this.currentNode.children[0]
+  }
+
+  /** Navigates one move back. */
+  back() {
+    if (!this.currentNode.isRoot()) this.currentNode = this.currentNode.data.parent
   }
 }
 

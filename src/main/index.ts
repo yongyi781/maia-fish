@@ -75,13 +75,13 @@ app.whenReady().then(async () => {
     if (engineOutputTimeout) clearInterval(engineOutputTimeout)
     stockfishProcess = spawn(config.stockfishPath)
     let chunks: string[] = []
-    // 100 fps
+    // 20 fps
     engineOutputTimeout = setInterval(() => {
       if (chunks.length > 0) {
         mainWindow.webContents.send("engine-output", chunks)
         chunks = []
       }
-    }, 10)
+    }, 50)
     stockfishProcess.stdout.on("data", (data: Buffer) => {
       chunks.push(...data.toString().split("\n"))
     })
@@ -193,7 +193,6 @@ setoption name MultiPV value 256
         {
           label: "Delete node",
           accelerator: "Backspace",
-          registerAccelerator: false,
           click() {
             mainWindow.webContents.send("deleteNode")
           }

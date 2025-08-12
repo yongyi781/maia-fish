@@ -84,7 +84,6 @@
         res.promotion = await promotionCallback(dest)
       }
     }
-    console.log("onmove")
     onmove?.(res)
   }
 

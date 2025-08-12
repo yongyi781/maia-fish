@@ -43,7 +43,7 @@
       ? '-scale-y-100'
       : ''}"
   >
-    <div class="bg-[#ddd] transition-[height] duration-300 ease-linear" style="height: {whiteHeight}%"></div>
-    <div class="bg-[#444] transition-[height] duration-300 ease-linear" style="height: {blackHeight}%"></div>
+    <div class="bg-[#ddd] transition-[height] duration-150 ease-linear" style="height: {whiteHeight}%"></div>
+    <div class="bg-[#444] transition-[height] duration-150 ease-linear" style="height: {blackHeight}%"></div>
   </div>
 </div>

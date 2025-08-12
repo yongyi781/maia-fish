@@ -10,7 +10,7 @@
   import EvalBar from "./components/EvalBar.svelte"
   import EvalGraph from "./components/EvalGraph.svelte"
   import Infobox from "./components/Infobox.svelte"
-  import MoveListNode from "./components/MoveListNode.svelte"
+  import MoveList from "./components/MoveList.svelte"
   import Score from "./components/Score.svelte"
   import { config } from "./config.svelte"
   import { Engine } from "./engine.svelte"
@@ -53,9 +53,9 @@
   function handleWheel(e: WheelEvent) {
     e.preventDefault()
     if (e.deltaY > 0) {
-      goForward()
+      gameState.forward()
     } else if (e.deltaY < 0) {
-      goBack()
+      gameState.back()
     }
   }
 
@@ -75,12 +75,11 @@
         engine.toggleAnalyze()
         break
       case "ArrowLeft":
-        goBack()
+        gameState.back()
         break
       case "ArrowRight":
-        goForward()
+        gameState.forward()
         break
-      case "Backspace":
       case "Delete":
         deleteCurrentNode()
         break
@@ -114,14 +113,6 @@
     for (let [lan, a] of currentNode.data.moveAnalyses) {
       a.maiaProbability = outputs.policy[lan]
     }
-  }
-
-  function goForward() {
-    if (gameState.currentNode.children.length > 0) gameState.currentNode = gameState.currentNode.children[0]
-  }
-
-  function goBack() {
-    if (!gameState.currentNode.isRoot()) gameState.currentNode = gameState.currentNode.data.parent
   }
 
   function loadFen(fen: string) {
@@ -165,9 +156,11 @@
     } else {
       const pgns = parsePgn(text)
       if (pgns.length < 0) throw new Error("Invalid PGN")
+      const headerFen = pgns[0].headers.get("FEN")
+      if (headerFen) loadFen(headerFen)
       gameState.game = {
         headers: pgns[0].headers,
-        moves: fromPgnNode(pgns[0].moves)
+        moves: fromPgnNode(pgns[0].moves, pgns[0].headers.get("FEN"))
       }
       gameState.currentNode = gameState.game.moves
     }
@@ -207,7 +200,7 @@
     // Individual move quality
     const parent = currentData.parent
     if (parent && parent.data.eval) {
-      const a = parent.data.moveAnalyses.find((m) => m[0] === currentData.lan)
+      const a = parent.data.moveAnalyses[parent.data.lanToIndex.get(currentData.lan)]
       if (a && a[1].score) {
         const q = moveQuality(a[1].score, parent.data.eval)
         if (q.threshold === 0) {
@@ -258,7 +251,7 @@
       const topHumanUci = currentData.topHumanMoveUci
       if (topHumanUci) {
         const topMove = parseUci(topHumanUci) as NormalMove
-        const score = currentData.moveAnalyses.find((m) => m[0] === topHumanUci)[1].score
+        const score = currentData.moveAnalyses[currentData.lanToIndex.get(topHumanUci)][1].score
         const best = currentData.eval
         const shape: DrawShape = {
           orig: makeSquare(topMove.from),
@@ -355,6 +348,8 @@
       }
     })
 
+    window.electron.ipcRenderer.on("deleteNode", deleteCurrentNode)
+
     window.electron.ipcRenderer.on("deleteOtherLines", () => {
       if (isTextFocused()) return
       let node = gameState.currentNode.end()
@@ -445,11 +440,12 @@
     </div>
     <EvalBar bind:this={evalBar} {orientation} />
     <!-- Right -->
-    <div class="flex flex-1/3 gap-2 flex-col max-h-[576px]">
+    <div class="flex flex-2/5 gap-2 flex-col max-h-[576px]">
       <button
-        class="flex p-1 h-16 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
+        class="flex p-1 h-20 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
           ? 'bg-green-950 outline-green-900'
           : ' outline-zinc-700'}"
+        title="Shortcut: Space"
         onclick={() => {
           engine.toggleAnalyze()
         }}
@@ -471,7 +467,7 @@
             {formatScore(gameState.currentNode.data.turn, gameState.currentNode.data.eval)}
           </div>
           <div>
-            <span class="text-gray-500">Human:</span>
+            <div class="text-gray-500">Human:</div>
             <Score
               score={gameState.currentNode.data.humanEval}
               best={gameState.currentNode.data.eval}
@@ -479,38 +475,69 @@
             />
           </div>
           <div>
-            <span class="text-gray-500">Nodes:</span>
+            <div class="text-gray-500">Nodes:</div>
             {analysisNumber("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
           </div>
           <div>
-            <span class="text-gray-500">Time:</span>
+            <div class="text-gray-500">Time:</div>
             {analysisNumber("time", (x) => `${(x / 1000).toFixed(1)}s`)}
           </div>
           <div>
-            <span class="text-gray-500">N/s:</span>
+            <div class="text-gray-500">N/s:</div>
             {analysisNumber("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
           </div>
           <div>
-            <span class="text-gray-500">Hash:</span>
+            <div class="text-gray-500">Hash:</div>
             {analysisNumber("hashfull", (x) => `${(x / 10).toFixed(1)}%`)}
           </div>
         {/if}
       </button>
-      <div class=" flex-2/3 overflow-auto">
+      <div class="border border-zinc-700 rounded-sm flex-3/5 overflow-auto">
         <!-- Infobox -->
         <Infobox data={gameState.currentNode.data} />
       </div>
-      <div class="flex-1/3 overflow-auto">
-        <!-- Move list root -->
-        <div class="p-1 select-none flex flex-wrap max-h-full">
-          <MoveListNode ply={0} node={gameState.game.moves} bind:currentNode={gameState.currentNode} />
+      <div class="flex justify-center gap-3">
+        <div class="flex items-center gap-2">
+          <label for="depth" class="text-sm text-zinc-400 dark:text-zinc-500">Depth</label>
+          <input
+            type="number"
+            value={config.value.autoAnalyzeDepthLimit}
+            min="0"
+            oninput={(e) => (config.value.autoAnalyzeDepthLimit = Number(e.currentTarget.value))}
+            class="w-16 px-2 py-1 rounded-md border border-zinc-800 dark:border-zinc-600"
+          />
         </div>
+        <div class="flex items-center justify-center gap-0">
+          <button
+            class="px-2 py-1 rounded-l-md {engine.autoMode === 'backward'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} transition-colors outline outline-zinc-800 dark:outline-zinc-600"
+            title="Shortcut: Shift+F12"
+            onclick={() => (engine.autoMode = engine.autoMode === "backward" ? "off" : "backward")}
+          >
+            ◀◀
+          </button>
+          <button
+            class="px-2 py-1 rounded-r-md {engine.autoMode === 'forward'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} transition-colors outline outline-zinc-800 dark:outline-zinc-600"
+            title="Shortcut: F12"
+            onclick={() => (engine.autoMode = engine.autoMode === "forward" ? "off" : "forward")}
+          >
+            ▶▶
+          </button>
+        </div>
+      </div>
+      <div class="flex-1/3 overflow-auto border border-zinc-700 rounded-sm p-1">
+        <!-- Move list root -->
+        <MoveList />
       </div>
     </div>
   </div>
   <div class="flex items-center gap-x-3 p-2">
-    <span>FEN</span>
+    <label for="fen">FEN</label>
     <input
+      id="fen"
       class="w-[500px] font-mono"
       type="text"
       value={gameState.currentNode.data.fen}

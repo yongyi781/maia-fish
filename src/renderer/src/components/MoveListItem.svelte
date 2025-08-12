@@ -2,14 +2,16 @@
   import { gameState, Node } from "../game.svelte"
 
   interface Props {
-    ply: number
     node: Node
     currentNode: Node
-    firstInVariation?: boolean
   }
 
-  let { ply, node, currentNode = $bindable(), firstInVariation }: Props = $props()
+  let { node, currentNode = $bindable() }: Props = $props()
   const inCurrentLine = $derived(gameState.currentLine.includes(node))
+
+  function forceShowMoveNumber() {
+    return node.data.parent.isRoot() || node.data.parent.children[0] !== node
+  }
 
   function setCurrentNode() {
     if (currentNode !== node) currentNode = node
@@ -32,10 +34,10 @@
   onmousedown={setCurrentNode}
   onclick={setCurrentNode}
 >
-  {#if ply % 2 == 1}
-    <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{(ply + 1) / 2}.</span>
-  {:else if firstInVariation}
-    <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{ply / 2}...</span>
+  {#if node.data.turn === "b"}
+    <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{node.data.moveNumber}.</span>
+  {:else if forceShowMoveNumber()}
+    <span class="font-normal text-sm text-gray-400 dark:text-gray-500">{node.data.moveNumber}...</span>
   {/if}
   {node.data.san}</button
 >

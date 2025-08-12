@@ -167,12 +167,10 @@
     ctx.imageSmoothingEnabled = false
 
     const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        const entry = entries.find((entry) => entry.target === canvas)
-        canvas.width = entry.devicePixelContentBoxSize[0].inlineSize
-        canvas.height = entry.devicePixelContentBoxSize[0].blockSize
-        draw()
-      }
+      const entry = entries.find((entry) => entry.target === canvas)
+      canvas.width = entry.devicePixelContentBoxSize[0].inlineSize
+      canvas.height = entry.devicePixelContentBoxSize[0].blockSize
+      draw()
     })
 
     resizeObserver.observe(canvas, { box: "device-pixel-content-box" })

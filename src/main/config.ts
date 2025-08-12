@@ -13,7 +13,8 @@ const defaultConfig = {
   lichessBookRatings: [1600, 1800, 2000, 2200, 2500],
   humanSort: false,
   hideLinesForWhite: false,
-  hideLinesForBlack: false
+  hideLinesForBlack: false,
+  autoAnalyzeDepthLimit: 12
 }
 
 export type AppConfig = typeof defaultConfig
