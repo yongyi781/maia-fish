@@ -92,6 +92,10 @@
       case "b":
         config.value.hideLinesForBlack = !config.value.hideLinesForBlack
         break
+      case "F12":
+        engine.autoMode = e.shiftKey ? "backward" : "forward"
+        engine.go()
+        break
     }
   }
 
@@ -440,9 +444,9 @@
     </div>
     <EvalBar bind:this={evalBar} {orientation} />
     <!-- Right -->
-    <div class="flex flex-2/5 gap-2 flex-col max-h-[576px]">
+    <div class="flex flex-2/5 p-1 gap-2 flex-col max-h-[576px]">
       <button
-        class="flex p-1 h-20 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
+        class="flex h-20 items-center gap-3 outline transition-colors cursor-pointer rounded-xs {engine.analyzing
           ? 'bg-green-950 outline-green-900'
           : ' outline-zinc-700'}"
         title="Shortcut: Space"
@@ -492,7 +496,7 @@
           </div>
         {/if}
       </button>
-      <div class="border border-zinc-700 rounded-sm flex-3/5 overflow-auto">
+      <div class="outline outline-zinc-700 rounded-sm flex-3/5 overflow-auto">
         <!-- Infobox -->
         <Infobox data={gameState.currentNode.data} />
       </div>
@@ -504,7 +508,7 @@
             value={config.value.autoAnalyzeDepthLimit}
             min="0"
             oninput={(e) => (config.value.autoAnalyzeDepthLimit = Number(e.currentTarget.value))}
-            class="w-16 px-2 py-1 rounded-md border border-zinc-800 dark:border-zinc-600"
+            class="w-16 px-2 py-1 rounded-md outline outline-zinc-800 dark:border-zinc-600"
           />
         </div>
         <div class="flex items-center justify-center gap-0">
@@ -528,7 +532,7 @@
           </button>
         </div>
       </div>
-      <div class="flex-1/3 overflow-auto border border-zinc-700 rounded-sm p-1">
+      <div class="flex-1/3 overflow-auto outline outline-zinc-700 rounded-sm p-1">
         <!-- Move list root -->
         <MoveList />
       </div>

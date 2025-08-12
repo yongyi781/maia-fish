@@ -185,11 +185,14 @@ export class Engine {
           info.pv = pvUciToSan(pos, info.pv)
           Object.assign(entry, info)
         }
-        if (Math.max(entry.depth, info.depth) > config.value.autoAnalyzeDepthLimit && this.autoMode !== "off") {
+        if (
+          this.autoMode !== "off" &&
+          data.moveAnalyses.every((a) => a[1].depth >= config.value.autoAnalyzeDepthLimit)
+        ) {
           if (this.autoMode === "forward") {
-            gameState.forward()
+            if (!gameState.forward()) this.autoMode = "off"
           } else if (this.autoMode === "backward") {
-            gameState.back()
+            if (!gameState.back()) this.autoMode = "off"
           }
           break
         }

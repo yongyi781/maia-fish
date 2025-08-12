@@ -315,14 +315,22 @@ export class GameState {
     }
   }
 
-  /** Navigates one move forward. */
+  /** Navigates one move forward. Returns whether a move was made. */
   forward() {
-    if (this.currentNode.children.length > 0) this.currentNode = this.currentNode.children[0]
+    if (this.currentNode.children.length > 0) {
+      this.currentNode = this.currentNode.children[0]
+      return true
+    }
+    return false
   }
 
-  /** Navigates one move back. */
+  /** Navigates one move back. Returns whether a move was made. */
   back() {
-    if (!this.currentNode.isRoot()) this.currentNode = this.currentNode.data.parent
+    if (!this.currentNode.isRoot()) {
+      this.currentNode = this.currentNode.data.parent
+      return true
+    }
+    return false
   }
 }
 

@@ -59,9 +59,9 @@ app.whenReady().then(async () => {
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on("browser-window-created", (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+  // app.on("browser-window-created", (_, window) => {
+  //   optimizer.watchWindowShortcuts(window)
+  // })
 
   // IPC
   ipcMain.handle("config:get", () => loadConfig())
@@ -75,13 +75,13 @@ app.whenReady().then(async () => {
     if (engineOutputTimeout) clearInterval(engineOutputTimeout)
     stockfishProcess = spawn(config.stockfishPath)
     let chunks: string[] = []
-    // 20 fps
+    // 40 fps
     engineOutputTimeout = setInterval(() => {
       if (chunks.length > 0) {
         mainWindow.webContents.send("engine-output", chunks)
         chunks = []
       }
-    }, 50)
+    }, 25)
     stockfishProcess.stdout.on("data", (data: Buffer) => {
       chunks.push(...data.toString().split("\n"))
     })
@@ -265,7 +265,7 @@ setoption name MultiPV value 256
     },
     {
       label: "Window",
-      submenu: [{ role: "reload" }]
+      submenu: [{ role: "reload" }, { role: "toggleDevTools" }]
     }
   ])
   Menu.setApplicationMenu(menu)
