@@ -7,6 +7,7 @@
   import { onMount, untrack } from "svelte"
   import "./app.css"
   import Chessboard from "./components/Chessboard.svelte"
+  import EngineSettings from "./components/EngineSettings.svelte"
   import EvalBar from "./components/EvalBar.svelte"
   import EvalGraph from "./components/EvalGraph.svelte"
   import Infobox from "./components/Infobox.svelte"
@@ -36,8 +37,7 @@
   let evalBar: EvalBar
   /** Reactive orientation variable for the eval bar. */
   let orientation: "white" | "black" = $state("white")
-  /** A timeout for debouncing engine commands. */
-  // let pendingEngineTimeout: NodeJS.Timeout
+  let showEngineSettings = $state(false)
 
   async function handleCurrentNodeChanged() {
     const data = gameState.currentNode.data
@@ -178,23 +178,21 @@
   }
 
   /** Loads a FEN or PGN. */
-  async function loadFenOrPgn(text: string) {
+  function loadFenOrPgn(text: string) {
     const setup = parseFen(text)
     if (setup.isOk) {
       loadFen(text)
     } else {
       const pgns = parsePgn(text)
-      if (pgns.length < 0) throw new Error("Invalid PGN")
+      if (pgns.length == 0) throw new Error("Invalid PGN")
       const headerFen = pgns[0].headers.get("FEN")
-      if (headerFen) loadFen(headerFen)
       gameState.game = {
         headers: pgns[0].headers,
-        moves: fromPgnNode(pgns[0].moves, pgns[0].headers.get("FEN"))
+        moves: fromPgnNode(pgns[0].moves, headerFen)
       }
       gameState.userSetCurrentNode(gameState.game.moves)
     }
-    await engine.stop()
-    engine.newGame()
+    return engine.newGame()
   }
 
   /** Copies the PGN to the clipboard. */
@@ -306,6 +304,10 @@
 
   onMount(() => {
     gameState.currentNode = gameState.game.moves
+
+    window.electron.ipcRenderer.on("engine-id", async (e, id: string) => {
+      engine.name = id
+    })
 
     window.electron.ipcRenderer.on("newGame", async () => {
       await engine.newGame()
@@ -450,58 +452,75 @@
     <EvalBar bind:this={evalBar} {orientation} />
     <!-- Right -->
     <div class="flex max-h-[576px] flex-1 flex-col gap-2 p-1">
-      <button
-        class="flex h-20 cursor-pointer items-center gap-3 rounded-xs outline transition-colors {engine.analyzing
-          ? 'bg-green-950 outline-green-900'
-          : ' outline-zinc-700'}"
-        title="Shortcut: Space"
-        onclick={() => {
-          engine.toggleAnalyze()
-        }}
+      <div class="flex">
+        <button
+          class="flex h-20 flex-1 cursor-pointer items-center gap-3 rounded-l-md outline transition-colors {engine.analyzing
+            ? 'bg-green-950 outline-green-900'
+            : showEngineSettings
+              ? 'outline-zinc-700'
+              : 'outline-zinc-700 hover:bg-zinc-800'}"
+          title="Shortcut: Space"
+          onclick={async () => {
+            engine.toggleAnalyze()
+          }}
+        >
+          {#if showEngineSettings}
+            <div class="w-full text-xl font-bold">{engine.name}</div>
+          {:else if gameState.chess.isEnd()}
+            <div class="w-full text-3xl font-bold text-amber-200">
+              {#if gameState.chess.isCheckmate()}
+                Checkmate, {gameState.currentNode.data.turn === "w" ? "black" : "white"} wins
+              {:else if gameState.chess.isInsufficientMaterial()}
+                Insufficient material
+              {:else if gameState.chess.isStalemate()}
+                Stalemate
+              {/if}
+            </div>
+          {:else if engine.status === "unloaded"}
+            <div class="w-full text-3xl font-bold">No engine loaded</div>
+          {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
+            <div class="w-full text-3xl font-bold">Analyze</div>
+          {:else}
+            <div class="w-24 text-center text-3xl font-bold text-nowrap">
+              {formatScore(gameState.currentNode.data.turn, gameState.currentNode.data.eval)}
+            </div>
+            <div>
+              <div class="text-gray-500">Human:</div>
+              <Score
+                score={gameState.currentNode.data.humanEval}
+                best={gameState.currentNode.data.eval}
+                turn={gameState.currentNode.data.turn}
+              />
+            </div>
+            <div>
+              <div class="text-gray-500">Nodes:</div>
+              {analysisNumber("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
+            </div>
+            <div>
+              <div class="text-gray-500">Time:</div>
+              {analysisNumber("time", (x) => `${(x / 1000).toFixed(1)}s`)}
+            </div>
+            <div>
+              <div class="text-gray-500">N/s:</div>
+              {analysisNumber("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
+            </div>
+            <div>
+              <div class="text-gray-500">Hash:</div>
+              {analysisNumber("hashfull", (x) => `${(x / 10).toFixed(1)}%`)}
+            </div>
+          {/if}
+        </button>
+        <button
+          class="cursor-pointer rounded-r-md px-2 outline outline-zinc-700 transition-colors {showEngineSettings
+            ? 'bg-[#555577]'
+            : 'bg-[#1a202c] hover:bg-[#333355]'}"
+          onclick={() => (showEngineSettings = !showEngineSettings)}>⚙️</button
+        >
+      </div>
+      <div
+        class="flex h-1/2 flex-1/2 shrink-0 flex-col rounded-sm outline outline-zinc-700"
+        hidden={showEngineSettings}
       >
-        {#if gameState.chess.isEnd()}
-          <div class="w-full text-3xl font-bold text-amber-200">
-            {#if gameState.chess.isCheckmate()}
-              Checkmate, {gameState.currentNode.data.turn === "w" ? "black" : "white"} wins
-            {:else if gameState.chess.isInsufficientMaterial()}
-              Insufficient material
-            {:else if gameState.chess.isStalemate()}
-              Stalemate
-            {/if}
-          </div>
-        {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
-          <div class="w-full text-3xl font-bold">Analyze</div>
-        {:else}
-          <div class="w-24 text-center text-3xl font-bold text-nowrap">
-            {formatScore(gameState.currentNode.data.turn, gameState.currentNode.data.eval)}
-          </div>
-          <div>
-            <div class="text-gray-500">Human:</div>
-            <Score
-              score={gameState.currentNode.data.humanEval}
-              best={gameState.currentNode.data.eval}
-              turn={gameState.currentNode.data.turn}
-            />
-          </div>
-          <div>
-            <div class="text-gray-500">Nodes:</div>
-            {analysisNumber("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
-          </div>
-          <div>
-            <div class="text-gray-500">Time:</div>
-            {analysisNumber("time", (x) => `${(x / 1000).toFixed(1)}s`)}
-          </div>
-          <div>
-            <div class="text-gray-500">N/s:</div>
-            {analysisNumber("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
-          </div>
-          <div>
-            <div class="text-gray-500">Hash:</div>
-            {analysisNumber("hashfull", (x) => `${(x / 10).toFixed(1)}%`)}
-          </div>
-        {/if}
-      </button>
-      <div class="flex h-1/2 flex-1/2 shrink-0 flex-col rounded-sm outline outline-zinc-700">
         <div class="flex items-center justify-center gap-6 p-2">
           <div class="flex items-center gap-2" title="Shortcut: H">
             <input type="checkbox" id="checkbox1" bind:checked={config.value.humanSort} />
@@ -522,7 +541,7 @@
           <Infobox data={gameState.currentNode.data} />
         </div>
       </div>
-      <div class="flex justify-center gap-3">
+      <div class="flex justify-center gap-3" hidden={showEngineSettings}>
         <div class="flex items-center gap-2">
           <label for="depth" class="text-sm text-zinc-400 dark:text-zinc-500">Depth</label>
           <input
@@ -562,6 +581,7 @@
             title="Shortcut: F9 (when white)"
             onclick={() => {
               gameState.maiaAutoMode = gameState.maiaAutoMode === "white" ? "off" : "white"
+              config.value.hideLinesForBlack = true
               maybePlayMaiaMove()
             }}
           >
@@ -574,6 +594,7 @@
             title="Shortcut: F9 (when black)"
             onclick={() => {
               gameState.maiaAutoMode = gameState.maiaAutoMode === "black" ? "off" : "black"
+              config.value.hideLinesForWhite = true
               maybePlayMaiaMove()
             }}
           >
@@ -581,9 +602,11 @@
           </button>
         </div>
       </div>
-      <div class="flex-1/2 overflow-auto rounded-sm p-1 outline outline-zinc-700">
-        <!-- Move list root -->
+      <div class="flex-1/2 overflow-auto rounded-sm p-1 outline outline-zinc-700" hidden={showEngineSettings}>
         <MoveList />
+      </div>
+      <div class="flex-1 overflow-auto rounded-sm p-1 outline outline-zinc-700" hidden={!showEngineSettings}>
+        <EngineSettings {engine} onapply={() => (showEngineSettings = false)} />
       </div>
     </div>
   </div>

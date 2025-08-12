@@ -1,7 +1,7 @@
 import { fen } from "chessops"
 import { gameState, NodeData } from "./game.svelte"
 import { Score } from "./types"
-import { chessFromFen, pvUciToSan } from "./utils"
+import { chessFromFen, delay, pvUciToSan } from "./utils"
 import { config } from "./config.svelte"
 
 export interface UciInfo {
@@ -90,15 +90,20 @@ function parseUciInfo(line: string): UciInfo {
 export class Engine {
   /** Whether we are analyzing. This is different from whether the engine is running. */
   #analyzing = $state(false)
-  /** The main engine output listener. */
-  #off?: () => void
-  #stopOff?: () => void
+  name = $state("")
   /** The engine's actual status. */
-  status: "stopped" | "running" = $state("stopped")
+  status: "unloaded" | "stopped" | "running" = $state("unloaded")
   autoMode: "forward" | "backward" | "off" = $state("off")
+  /** The main engine output listener. Calling this unregisters the listener. */
+  #off?: () => void
+  /** The "bestmove" listener to tell when the engine has stopped. Calling this unregisters the listener. */
+  #stopOff?: () => void
 
   constructor() {
-    window.api.engine.start("")
+    // Try starting
+    config.promise.then(() => {
+      this.start(config.value.engine.path)
+    })
   }
 
   get analyzing() {
@@ -111,13 +116,28 @@ export class Engine {
     window.api.engine.send("ucinewgame")
   }
 
+  /** Starts the engine. */
+  async start(path: string) {
+    if (this.status !== "unloaded") return
+    if (await window.api.engine.start(path)) {
+      this.status = "stopped"
+      this.setOption("Threads", config.value.engine.threads.toString())
+      this.setOption("Hash", config.value.engine.hash.toString())
+      this.setOption("MultiPV", config.value.engine.multiPV.toString())
+      this.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
+    } else {
+      console.error("Failed to start engine")
+    }
+  }
+
+  /** Sets a UCI option. */
   setOption(name: string, value: string): void {
     window.api.engine.send(`setoption name ${name} value ${value}`)
   }
 
-  /** Starts the engine. */
+  /** Starts analyzing. */
   go() {
-    if (this.status === "running") return
+    if (this.status !== "stopped") return
     this.#analyzing = true
     this.#off?.()
     this.#off = undefined
@@ -134,7 +154,7 @@ export class Engine {
     if (analyzeOff) this.#analyzing = false
     this.#off?.()
     this.#off = undefined
-    if (this.status === "stopped" || this.#stopOff) return
+    if (this.status !== "running" || this.#stopOff) return
     window.api.engine.send("stop")
     return new Promise<void>((resolve) => {
       this.#stopOff = window.electron.ipcRenderer.on("engine-output", (_, lines: string[]) => {
@@ -154,9 +174,7 @@ export class Engine {
   /** Updates the engine position. */
   async updatePosition(initialFen: string, moves: string[]) {
     const promise = this.stop(false)
-    let command = `position ${initialFen === fen.INITIAL_FEN ? "startpos" : "fen " + initialFen}`
-    if (moves.length > 0) command += ` moves ${moves.join(" ")}`
-    window.api.engine.send(command)
+    this.sendPositionCommand(initialFen, moves)
     await promise
     if (this.analyzing) this.go()
   }
@@ -202,5 +220,11 @@ export class Engine {
         this.#off = undefined
       }
     }
+  }
+
+  private sendPositionCommand(initialFen: string, moves: string[]) {
+    let command = `position ${initialFen === fen.INITIAL_FEN ? "startpos" : "fen " + initialFen}`
+    if (moves.length > 0) command += ` moves ${moves.join(" ")}`
+    window.api.engine.send(command)
   }
 }

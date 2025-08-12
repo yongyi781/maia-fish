@@ -1,6 +1,0 @@
-onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
-  - electron
-  - esbuild
-  - onnxruntime-node
-  - svelte-preprocess

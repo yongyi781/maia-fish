@@ -10,8 +10,9 @@ export interface WindowAPI {
   }
   engine: {
     choose(): Promise<string>
-    start(path: string): void
+    start(path: string): Promise<boolean>
     send(command: string): void
+    getOptions(): Promise<any[]>
   }
   writeToClipboard(text: string): void
   analyzeMaia({

@@ -11,7 +11,7 @@ const api: WindowAPI = {
   },
   engine: {
     choose: () => ipcRenderer.invoke("engine:choose"),
-    start: (path: string) => ipcRenderer.send("engine:start", path),
+    start: (path: string) => ipcRenderer.invoke("engine:start", path),
     send: (command: string) => ipcRenderer.send("engine:send", command)
   },
   writeToClipboard: (text: string) => clipboard.writeText(text),

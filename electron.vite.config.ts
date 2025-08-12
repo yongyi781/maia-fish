@@ -6,6 +6,10 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
+      commonjsOptions: {
+        ignoreDynamicRequires: true,
+        dynamicRequireTargets: ["node_modules/onnxruntime-node/**/*"]
+      },
       rollupOptions: {
         external: ["onnxruntime-node"]
       }

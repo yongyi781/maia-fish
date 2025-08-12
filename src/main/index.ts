@@ -2,16 +2,25 @@ import { electronApp, is } from "@electron-toolkit/utils"
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
-import { join } from "path"
+import path, { join } from "path"
 import icon from "../../resources/icon.ico?asset"
-import maia_rapid from "../../resources/maia_rapid.onnx?asset"
 import { loadConfig, saveConfig } from "./config"
 
 /** Engine output interval, in milliseconds. */
 let mainWindow: BrowserWindow
-let stockfishProcess: ChildProcessWithoutNullStreams
+let engineProcess: ChildProcessWithoutNullStreams
 let maiaModel: InferenceSession
-let engineOutputTimeout: NodeJS.Timeout
+let engineOutputTimeout: NodeJS.Timeout | undefined
+
+function getModelPath() {
+  if (app.isPackaged) {
+    // In packaged app: process.resourcesPath is correct
+    return path.join(process.resourcesPath, "maia_rapid.onnx")
+  } else {
+    // In dev: load from source directory
+    return path.join(__dirname, "..", "..", "resources", "maia_rapid.onnx")
+  }
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -32,7 +41,7 @@ function createWindow(): void {
 
   mainWindow.on("closed", () => {
     clearInterval(engineOutputTimeout)
-    stockfishProcess?.kill()
+    engineProcess?.kill()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -71,41 +80,90 @@ app.whenReady().then(async () => {
     saveConfig(newConfig)
   })
 
-  ipcMain.on("engine:start", () => {
-    if (stockfishProcess) stockfishProcess.kill()
-    if (engineOutputTimeout) clearInterval(engineOutputTimeout)
-    stockfishProcess = spawn(config.stockfishPath)
-    let chunks: string[] = []
-    engineOutputTimeout = setInterval(() => {
-      if (chunks.length > 0) {
-        mainWindow.webContents.send("engine-output", chunks)
-        chunks = []
-      }
-    }, config.analysisUpdateInterval)
-    stockfishProcess.stdout.on("data", (data: Buffer) => {
-      chunks.push(...data.toString().split("\n"))
-    })
-    stockfishProcess.stdin.write(`
-uci
-isready
-ucinewgame
-setoption name Threads value 14
-setoption name Hash value 1024
-setoption name MultiPV value 256
-`)
+  ipcMain.handle("engine:start", (_, path: string) => {
+    if (engineProcess) engineProcess.kill()
+    if (engineOutputTimeout) {
+      clearInterval(engineOutputTimeout)
+      engineOutputTimeout = undefined
+    }
+    try {
+      engineProcess = spawn(path)
+      let chunks: string[] = []
+      const config = loadConfig()
+      engineOutputTimeout = setInterval(() => {
+        if (chunks.length > 0) {
+          mainWindow.webContents.send("engine-output", chunks)
+          chunks = []
+        }
+      }, config.analysisUpdateInterval)
+
+      engineProcess.stdout.on("data", (data: Buffer) => {
+        chunks.push(...data.toString().split("\n"))
+      })
+
+      return new Promise((resolve) => {
+        const onData = (data: Buffer) => {
+          if (data.toString().includes("readyok")) {
+            engineProcess.stdout.removeListener("data", onData)
+            resolve(true)
+          }
+          for (const line of data.toString().split("\n")) {
+            console.log("Received line:", line)
+            if (line.startsWith("id name")) {
+              mainWindow.webContents.send("engine-id", line.substring(8).trim())
+              break
+            }
+          }
+        }
+        engineProcess.stdout.on("data", onData)
+        engineProcess.stdin.write("uci\nisready\n")
+      })
+    } catch (error) {
+      console.log(error)
+      return false
+    }
   })
 
   ipcMain.handle("engine:choose", async () => {
-    const result = await dialog.showOpenDialog({ properties: ["openFile"] })
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [
+        { name: "Executable file", extensions: ["exe"] },
+        { name: "All files", extensions: ["*"] }
+      ]
+    })
     return result.filePaths[0]
   })
 
   ipcMain.on("engine:send", (_, command) => {
-    // console.log("SF command:", command)
-    if (stockfishProcess && stockfishProcess.stdin.writable) stockfishProcess.stdin.write(command + "\n")
+    console.log("SF command:", command)
+    if (engineProcess && engineProcess.stdin.writable) engineProcess.stdin.write(command + "\n")
   })
 
-  ipcMain.handle("analyze-maia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
+  // ipcMain.handle("engine:getOptions", async () => {
+  //   if (!engineProcess) return []
+  //   return new Promise((resolve) => {
+  //     const options: { name: string; type: string; default: string }[] = []
+  //     const listener = (data: Buffer) => {
+  //       const lines = data.toString().split("\n")
+  //       for (const line of lines) {
+  //         if (line.startsWith("option")) {
+  //           const match = line.match(/option name (.*) type (.*) default (.*)/)
+  //           if (match) {
+  //             options.push({ name: match[1], type: match[2], default: match[3] })
+  //           }
+  //         } else if (line.startsWith("uciok")) {
+  //           engineProcess.stdout.removeListener("data", listener)
+  //           resolve(options)
+  //         }
+  //       }
+  //     }
+  //     engineProcess.stdout.on("data", listener)
+  //     engineProcess.stdin.write("uci\n")
+  //   })
+  // })
+
+  ipcMain.handle("analyze-maia", (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
     if (!maiaModel) return
     const feeds: Record<string, Tensor> = {
       boards: new Tensor("float32", boardInput, [1, 18, 8, 8]),
@@ -269,7 +327,7 @@ setoption name MultiPV value 256
     }
   ])
   Menu.setApplicationMenu(menu)
-  maiaModel = await InferenceSession.create(maia_rapid)
+  maiaModel = await InferenceSession.create(getModelPath())
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

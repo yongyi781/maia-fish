@@ -2,11 +2,10 @@ import { app } from "electron"
 import { join } from "path"
 import { readFileSync, writeFileSync, existsSync } from "fs"
 
-const CONFIG_VERSION = 5
+const CONFIG_VERSION = 2
 
 const defaultConfig = {
   version: CONFIG_VERSION,
-  stockfishPath: String.raw`C:\Apps\Stockfish\stockfish_x86-64-bmi2.exe`,
   nodes: 1000000,
   lichessThreshold: 1000,
   lichessBookSpeeds: ["blitz", "rapid", "classical", "correspondence"],
@@ -15,7 +14,13 @@ const defaultConfig = {
   hideLinesForWhite: false,
   hideLinesForBlack: false,
   autoAnalyzeDepthLimit: 12,
-  analysisUpdateInterval: 40
+  analysisUpdateInterval: 40,
+  engine: {
+    path: "",
+    threads: 2,
+    hash: 256,
+    multiPV: 256
+  }
 }
 
 export type AppConfig = typeof defaultConfig

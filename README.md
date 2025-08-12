@@ -9,8 +9,10 @@ This application allows you to analyze chess positions and games with two differ
 
 ## Todo
 
+- Decide what to do about human evaluation when MultiPV is less than max
 - Fix: Canceling in promotion dialog
 - Fix: implement draw by threefold repetition and 50-move rule
+- Fix: auto-analysis doesn't turn off when ending at checkmate
 
 ## Features
 
