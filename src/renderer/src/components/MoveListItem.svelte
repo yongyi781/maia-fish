@@ -4,10 +4,9 @@
 
   interface Props {
     node: Node
-    currentNode: Node
   }
 
-  let { node, currentNode = $bindable() }: Props = $props()
+  let { node }: Props = $props()
   const inCurrentLine = $derived(gameState.currentLine.includes(node))
 
   function forceShowMoveNumber() {
@@ -15,7 +14,7 @@
   }
 
   function setCurrentNode() {
-    if (currentNode !== node) currentNode = node
+    if (gameState.currentNode !== node) gameState.userSetCurrentNode(node)
   }
 
   function outlineColor() {
@@ -28,9 +27,9 @@
 </script>
 
 <button
-  class="px-1 font-bold hover:bg-[#555577] {node === currentNode && 'outline-1'} {!inCurrentLine &&
+  class="px-1 font-bold hover:bg-[#555577] {node === gameState.currentNode && 'outline-1'} {!inCurrentLine &&
     'text-gray-400 dark:text-gray-600'}"
-  style:background-color={node === currentNode ? bgColor() : ""}
+  style:background-color={node === gameState.currentNode ? bgColor() : ""}
   style:outline-color={outlineColor()}
   style:color={inCurrentLine ? nagToColor[node.data.engineNag] : undefined}
   onmousedown={setCurrentNode}

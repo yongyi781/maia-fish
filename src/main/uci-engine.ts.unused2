@@ -1,0 +1,140 @@
+import { ChildProcessWithoutNullStreams, spawn } from "child_process"
+import { EventEmitter } from "events"
+
+export interface UciOption {
+  name: string
+  type: "string" | "spin" | "button" | "check" | "combo"
+  default?: string
+  min?: number
+  max?: number
+}
+
+export class UciEngine extends EventEmitter {
+  private engineProcess: ChildProcessWithoutNullStreams | null = null
+
+  start(enginePath: string): Promise<void> {
+    if (this.engineProcess) this.engineProcess.kill()
+    return new Promise((resolve, reject) => {
+      try {
+        this.engineProcess = spawn(enginePath)
+
+        this.engineProcess.stdout.on("data", (data: Buffer) => {
+          const output = data.toString()
+          this.emit("output", output)
+        })
+
+        this.engineProcess.stderr.on("data", (data: Buffer) => {
+          const error = data.toString()
+          this.emit("error", `Engine error: ${error}`)
+        })
+
+        this.engineProcess.on("close", (code: number) => {
+          this.emit("close", code)
+          this.engineProcess = null
+        })
+
+        this.engineProcess.on("error", (err: Error) => {
+          this.emit("error", `Process error: ${err.message}`)
+          reject(err)
+        })
+
+        this.uci().then(this.isready).then(resolve).catch(reject)
+      } catch (error: any) {
+        this.emit("error", `Failed to start engine: ${error.message}`)
+        reject(error)
+      }
+    })
+  }
+
+  kill(): void {
+    if (this.engineProcess) {
+      this.engineProcess.kill()
+      this.engineProcess = null
+    }
+  }
+
+  send(command: string): void {
+    if (this.engineProcess && this.engineProcess.stdin) {
+      this.engineProcess.stdin.write(`${command}\n`)
+    } else {
+      this.emit("error", "Engine process not running or stdin not available.")
+    }
+  }
+
+  async uci() {
+    let name: string | undefined
+    let author: string | undefined
+    let options: UciOption[] = []
+    await this.sendAndWaitFor(
+      "uci",
+      (x) => x === "uciok",
+      5000,
+      (line) => {
+        if (line.startsWith("id name")) {
+          name = line.substring(8)
+        } else if (line.startsWith("id author")) {
+          author = line.substring(10)
+        } else if (line.startsWith("option")) {
+          const parts = line.split(" ")
+          options.push({
+            name: parts[1],
+            type: parts[2] as UciOption["type"],
+            default: parts[3],
+            min: parts[4] ? parseInt(parts[4]) : undefined,
+            max: parts[5] ? parseInt(parts[5]) : undefined
+          })
+        }
+      }
+    )
+    return { name, author, options }
+  }
+
+  isready() {
+    return this.sendAndWaitFor("isready", (x) => x === "readyok")
+  }
+
+  newGame() {
+    this.send("ucinewgame")
+    return this.isready()
+  }
+
+  go() {
+    this.send("go")
+  }
+
+  stop() {
+    return this.sendAndWaitFor("stop", (x) => x.startsWith("bestmove"))
+  }
+
+  setOption(name: string, value: string) {
+    this.send(`setoption name ${name} value ${value}`)
+  }
+
+  private async sendAndWaitFor(
+    command: string,
+    pred: (data: string) => boolean,
+    timeoutMs = 5000,
+    onOutput?: (line: string) => void
+  ) {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.removeListener("output", handleOutput)
+        reject(new Error(`${command} command timed out.`))
+      }, timeoutMs)
+
+      const handleOutput = (data: string) => {
+        for (const line of data) {
+          onOutput?.(line)
+          if (pred(line)) {
+            this.removeListener("output", handleOutput)
+            clearTimeout(timeout)
+            resolve()
+          }
+        }
+      }
+
+      this.on("output", handleOutput)
+      this.send(command)
+    })
+  }
+}

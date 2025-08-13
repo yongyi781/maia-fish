@@ -3,8 +3,8 @@
   import MoveListNode from "./MoveListNode.svelte"
 </script>
 
-<div class="select-none flex flex-wrap h-full">
+<div class="flex h-full flex-wrap select-none">
   <div>
-    <MoveListNode node={gameState.game.moves} bind:currentNode={gameState.currentNode} />
+    <MoveListNode node={gameState.game.moves} />
   </div>
 </div>
