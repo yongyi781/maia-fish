@@ -318,6 +318,13 @@
       evalBar.reset()
     })
 
+    window.electron.ipcRenderer.on("paste", (_, text: string) => {
+      if (isTextFocused()) return
+      if (text) {
+        loadFenOrPgn(text)
+      }
+    })
+
     window.electron.ipcRenderer.on("gotoRoot", () => {
       gameState.userSetCurrentNode(gameState.game.moves)
     })
@@ -424,14 +431,6 @@
     }
   }}
   oncopy={copyPgnToClipboard}
-  onpaste={async (e) => {
-    if (isTextFocused()) return
-    const text = e.clipboardData?.getData("text/plain")
-    if (text) {
-      e.preventDefault()
-      loadFenOrPgn(text)
-    }
-  }}
   onbeforeunload={() => {
     engine.stop()
   }}

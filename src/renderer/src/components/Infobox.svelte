@@ -45,6 +45,7 @@
   }
 
   function handleClick(e: MouseEvent, entry: [string, MoveAnalysis]) {
+    e.preventDefault()
     if (e.button === 0) {
       gameState.makeMove(parseUci(entry[0]))
     } else if (e.button === 1 || e.button === 2) {

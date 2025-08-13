@@ -1,6 +1,6 @@
 import { electronApp, is } from "@electron-toolkit/utils"
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import path, { join } from "path"
 import icon from "../../resources/icon.ico?asset"
@@ -201,7 +201,15 @@ app.whenReady().then(async () => {
         { type: "separator" },
         { role: "cut" },
         { role: "copy" },
-        { role: "paste" }
+        { role: "paste" },
+        { type: "separator" },
+        {
+          label: "Paste FEN or PGN",
+          accelerator: "Ctrl+Shift+V",
+          click() {
+            mainWindow.webContents.send("paste", clipboard.readText())
+          }
+        }
       ]
     },
     {
