@@ -51,12 +51,12 @@
     const analyses = data.moveAnalyses
     engine.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
     if (analyses.length !== 0 && analyses[0][1].maiaProbability === undefined) await populateMaiaProbabilities()
-    maybePlayMaiaMove()
+    return maybePlayMaiaMove()
   }
 
-  function maybePlayMaiaMove() {
+  async function maybePlayMaiaMove() {
     if (gameState.maiaAutoMode === (gameState.currentNode.data.turn === "w" ? "white" : "black")) {
-      playWeightedHumanMove()
+      return playWeightedHumanMove()
     }
   }
 
@@ -208,7 +208,9 @@
     e.clipboardData.setData("text/plain", pgn)
   }
 
-  function playWeightedHumanMove() {
+  async function playWeightedHumanMove() {
+    // See what Lichess has to say first...
+    await gameState.currentNode.fetchLichessStats()
     const entries = gameState.currentNode.data.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
     if (entries.length === 0) return
     const moves: [string, number][] = entries.map((a) => [a[0], humanProbability(a[1])])
@@ -305,7 +307,7 @@
   onMount(() => {
     gameState.currentNode = gameState.game.moves
 
-    window.electron.ipcRenderer.on("engine-id", async (e, id: string) => {
+    window.electron.ipcRenderer.on("engine-id", async (_, id: string) => {
       engine.name = id
     })
 

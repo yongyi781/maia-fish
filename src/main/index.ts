@@ -127,10 +127,13 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:choose", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
-      filters: [
-        { name: "Executable file", extensions: ["exe"] },
-        { name: "All files", extensions: ["*"] }
-      ]
+      filters:
+        process.platform === "win32"
+          ? [
+              { name: "Executable file", extensions: ["exe"] },
+              { name: "All files", extensions: ["*"] }
+            ]
+          : []
     })
     return result.filePaths[0]
   })
