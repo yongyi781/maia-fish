@@ -1,15 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { gameState } from "../game.svelte"
-  import {
-    chessFromFen,
-    classifyMove,
-    cpToWinProb,
-    moveQualities,
-    moveQuality,
-    nagToColor,
-    scoreWhitePov
-  } from "../utils"
+  import { chessFromFen, classifyMove, cpToWinProb, moveQualities, nagToColor, scoreWhitePov } from "../utils"
 
   const { class: className = "", ...restProps } = $props()
 
@@ -58,7 +50,7 @@
     ctx.strokeStyle = "white"
     ctx.lineWidth = 2
     const currentLine = gameState.currentLine
-    let indexCurrentMove: number
+    let indexCurrentMove: number | undefined
     const markers = []
     const denom = getDenom()
     ctx.beginPath()
@@ -67,7 +59,7 @@
       const lEval = l.data.eval
       if (l === gameState.currentNode) indexCurrentMove = i
 
-      let winProb: number
+      let winProb: number = 0.5
       const outcome = chessFromFen(l.data.fen).outcome()
       if (outcome) {
         winProb = outcome.winner === "white" ? 1 : outcome.winner === "black" ? 0 : 0.5
@@ -132,18 +124,20 @@
       ctx.fill()
       ctx.beginPath()
       ctx.arc(marker.x + 0.5, marker.y, 3, 0, 2 * Math.PI)
-      ctx.fillStyle = marker.innerColor
+      ctx.fillStyle = marker.innerColor ?? "white"
       ctx.fill()
     }
 
     // Draw line at current move
-    ctx.lineWidth = 1
-    ctx.strokeStyle = gameState.isMainline ? mainlineSolid : variationSolid
-    ctx.beginPath()
-    const x = Math.round((indexCurrentMove / denom) * (canvas.width - 5)) + 0.5
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, canvas.height)
-    ctx.stroke()
+    if (indexCurrentMove !== undefined) {
+      ctx.lineWidth = 1
+      ctx.strokeStyle = gameState.isMainline ? mainlineSolid : variationSolid
+      ctx.beginPath()
+      const x = Math.round((indexCurrentMove / denom) * (canvas.width - 5)) + 0.5
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, canvas.height)
+      ctx.stroke()
+    }
   }
 
   function handleClick(e: MouseEvent) {
@@ -157,14 +151,16 @@
   }
 
   onMount(() => {
-    ctx = canvas.getContext("2d")
+    ctx = canvas.getContext("2d")!
     ctx.imageSmoothingEnabled = false
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries.find((entry) => entry.target === canvas)
-      canvas.width = entry.devicePixelContentBoxSize[0].inlineSize
-      canvas.height = entry.devicePixelContentBoxSize[0].blockSize
-      draw()
+      if (entry) {
+        canvas.width = entry.devicePixelContentBoxSize[0].inlineSize
+        canvas.height = entry.devicePixelContentBoxSize[0].blockSize
+        draw()
+      }
     })
 
     resizeObserver.observe(canvas, { box: "device-pixel-content-box" })

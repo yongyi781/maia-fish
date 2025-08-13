@@ -10,7 +10,7 @@
   const inCurrentLine = $derived(gameState.currentLine.includes(node))
 
   function forceShowMoveNumber() {
-    return node.data.parent.isRoot() || node.data.parent.children[0] !== node
+    return !node.data.parent?.data.parent || node.data.parent.children[0] !== node
   }
 
   function setCurrentNode() {

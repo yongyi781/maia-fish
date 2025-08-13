@@ -14,7 +14,6 @@
   const white = square.charAt(1) === "8"
   const black = !white
   const pieces = ["queen", "knight", "rook", "bishop"]
-  const pieceNames = { q: "queen", n: "knight", r: "rook", b: "bishop", p: "pawn", k: "king" }
   function squareToFileNumber(square2: string) {
     return square2.charCodeAt(0) - 97
   }
@@ -38,7 +37,7 @@
         onkeydown={(e) => keyboardCallback(e, piece)}
         role="button"
         tabindex="0"
-        aria-label="Promote to {pieceNames[piece]}"
+        aria-label="Promote to {piece}"
       ></div>
     </div>
   {/each}

@@ -8,19 +8,16 @@
   ],
   "compilerOptions": {
     "useDefineForClassFields": true,
-    "strict": false,
     "allowJs": true,
     "checkJs": true,
-    // "moduleResolution": "bundler",
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitAny": false,
-    "noImplicitReturns": false,
+    "moduleResolution": "bundler",
+    "noImplicitAny": true,
+    "verbatimModuleSyntax": true,
     "lib": [
       "ESNext",
       "DOM",
       "DOM.Iterable"
-    ]
+    ],
   },
   "references": [
     {

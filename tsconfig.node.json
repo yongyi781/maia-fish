@@ -8,6 +8,8 @@
   "compilerOptions": {
     "composite": true,
     "moduleResolution": "bundler",
+    "strict": true,
+    "verbatimModuleSyntax": true,
     "types": [
       "electron-vite/node"
     ]

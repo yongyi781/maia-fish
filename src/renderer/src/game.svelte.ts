@@ -3,7 +3,7 @@ import { makeFen } from "chessops/fen"
 import { defaultHeaders } from "chessops/pgn"
 import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
 import { config } from "./config.svelte"
-import { Score } from "./types"
+import type { Score } from "./types"
 import { allLegalMoves, chessFromFen, classifyMove, existsBrilliantMove, normalizeMove, parseUci } from "./utils"
 
 function makeLichessUrl(fen: string) {
@@ -12,8 +12,8 @@ function makeLichessUrl(fen: string) {
   params.append("variant", "standard")
   params.append("topGames", "0")
   params.append("recentGames", "0")
-  params.append("speeds", config.value.lichessBookSpeeds.toString())
-  params.append("ratings", config.value.lichessBookRatings.toString())
+  if (config.value.lichessBookSpeeds) params.append("speeds", config.value.lichessBookSpeeds.toString())
+  if (config.value.lichessBookRatings) params.append("ratings", config.value.lichessBookRatings.toString())
   params.append("fen", fen)
   url.search = params.toString()
   return url
@@ -55,10 +55,12 @@ export interface MoveAnalysis {
   nps?: number
   /** Timestamp of the last update. For throttling. */
   lastUpdate?: DOMHighResTimeStamp
+  [key: string]: any
 }
 
+/** Returns the human probability of a move. If it's undefined, returns 0. */
 export function humanProbability(a: MoveAnalysis) {
-  return a.lichessProbability !== undefined ? a.lichessProbability : a.maiaProbability
+  return (a.lichessProbability !== undefined ? a.lichessProbability : a.maiaProbability) ?? 0
 }
 
 /**
@@ -69,9 +71,9 @@ export class NodeData implements pgn.PgnNodeData {
   /** The move number in plies (half-moves). */
   moveNumber: number
   /** Short algebraic notation for the move. */
-  san: string
+  san: string = ""
   /** Long algebraic notation for the move. */
-  lan: string
+  lan: string = ""
   /** The FEN string for the position. */
   fen: string = ""
   /** Side to move. */
@@ -99,7 +101,7 @@ export class NodeData implements pgn.PgnNodeData {
   pos: Chess = $derived(chessFromFen(this.fen))
 
   /** Current position's evaluation. */
-  eval: Score = $derived(
+  eval = $derived(
     this.moveAnalyses.length === 0
       ? undefined
       : this.moveAnalyses.reduce((max, ma) =>
@@ -108,30 +110,37 @@ export class NodeData implements pgn.PgnNodeData {
   )
 
   /** Current position's human evaluation, in centipawns. */
-  humanEval: Score = $derived(
+  humanEval = $derived(
     this.moveAnalyses.length === 0
       ? undefined
-      : {
+      : ({
           type: "cp",
           value: this.moveAnalyses.reduce(
             (acc, [, ma]) => acc + rawEvalClamped(ma.score) * (humanProbability(ma) ?? 0),
             0
           )
-        }
+        } as Score)
   )
 
   /** Gets the top human move according to the analysis. */
-  topHumanMoveUci: string = $derived.by(() => {
-    const entries = this.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
-    if (entries.length > 0)
-      return entries.reduce((a, b) => (humanProbability(a[1]) > humanProbability(b[1]) ? a : b))[0]
+  topHumanMoveUci = $derived.by(() => {
+    let res: string | undefined
+    let maxProb = -Infinity
+    for (const [uci, a] of this.moveAnalyses) {
+      const p = humanProbability(a)
+      if (p && p > maxProb) {
+        res = uci
+        maxProb = p
+      }
+    }
+    return res
   })
 
   /** Gets the top engine move (multiple if tied) according to the analysis. */
-  topEngineMovesUci: string[] = $derived.by(() => {
+  topEngineMovesUci = $derived.by(() => {
     const entries = this.moveAnalyses.filter((a) => a[1].score !== undefined)
     if (entries.length === 0) return []
-    let res = []
+    let res: string[] = []
     let bestScore = -Infinity
     for (const [uci, ma] of entries) {
       if (rawEval(ma.score) > bestScore) {
@@ -148,7 +157,8 @@ export class NodeData implements pgn.PgnNodeData {
   engineNag = $derived.by(() => {
     const p = this.parent
     if (!p || !p.data.eval) return 0
-    const score = this.parent.data.moveAnalyses[this.parent.data.lanToIndex.get(this.lan)][1]?.score
+    const score = this.parentAnalysisEntry()?.score
+    if (!score) return 0
     const c = classifyMove(score, p.data.eval)
     if (!c) return 0
     if (c === "best" && existsBrilliantMove(p.data)) return 3
@@ -157,6 +167,18 @@ export class NodeData implements pgn.PgnNodeData {
     if (c === "blunder") return 4
     return 0
   })
+
+  /** Gets move analysis by LAN. */
+  moveAnalysis(lan: string) {
+    const index = this.lanToIndex.get(lan)
+    if (index === undefined) return undefined
+    return this.moveAnalyses[index][1]
+  }
+
+  /** Gets the move analysis corresponding to this node of the parent node. */
+  parentAnalysisEntry() {
+    return this.parent?.data.moveAnalysis(this.lan)
+  }
 
   resetAnalysis() {
     if (this.moveAnalyses.length === 0) {
@@ -205,18 +227,13 @@ export class Node implements pgn.Node<NodeData> {
 
   /** Returns the path from the root to this node. */
   pathToRoot(): Node[] {
-    let node: Node = this
+    let node: Node | undefined = this
     let res = []
     while (node) {
       res.push(node)
       node = node.data.parent
     }
     return res
-  }
-
-  /** Returns whether this node is the root. */
-  isRoot() {
-    return this.data.parent === undefined
   }
 
   /** Returns the moves from the root to this node. */
@@ -254,6 +271,7 @@ export class Node implements pgn.Node<NodeData> {
   }
 
   async fetchLichessStats() {
+    if (!config.value.lichessThreshold) return
     const data = this.data
     if (
       !config.value?.lichessBookSpeeds ||
@@ -282,7 +300,7 @@ export class Node implements pgn.Node<NodeData> {
 }
 
 /** Converts a `pgn.Node` to a `Node`. */
-export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>, initialFen: string) {
+export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>, initialFen: string | undefined) {
   const res = new Node({ fen: initialFen })
   const stack = [
     {
@@ -291,7 +309,7 @@ export function fromPgnNode(pgnNode: pgn.Node<pgn.PgnNodeData>, initialFen: stri
     }
   ]
   while (stack.length > 0) {
-    const { before, after } = stack.pop()
+    const { before, after } = stack.pop()!
     if (before) {
       const pos = chessFromFen(after.data.fen)
       for (const child of before.children) {
@@ -369,8 +387,9 @@ export class GameState {
 
   /** Navigates one move forward. Returns whether a move was made. */
   forward() {
-    if (this.currentNode.children.length > 0) {
-      this.currentNode = this.currentNode.children[0]
+    const n = this.currentNode
+    if (n.children.length > 0) {
+      this.currentNode = n.children[0]
       return true
     }
     return false
@@ -378,8 +397,9 @@ export class GameState {
 
   /** Navigates one move back. Returns whether a move was made. */
   back() {
-    if (!this.currentNode.isRoot()) {
-      this.currentNode = this.currentNode.data.parent
+    const n = this.currentNode
+    if (n.data.parent) {
+      this.currentNode = n.data.parent
       return true
     }
     return false

@@ -1,9 +1,9 @@
-import { Chess, NormalMove, parseUci as cParseUci, Role, squareRank } from "chessops"
+import { Chess, type NormalMove, parseUci as cParseUci, type Role, squareRank } from "chessops"
 import { castlingSide } from "chessops/chess"
 import { parseFen } from "chessops/fen"
 import { makeSanAndPlay } from "chessops/san"
 import { humanProbability, NodeData, rawEval } from "./game.svelte"
-import { Score } from "./types"
+import type { Score } from "./types"
 
 export function delay(delayInms: number) {
   return new Promise((resolve) => setTimeout(resolve, delayInms))
@@ -24,8 +24,8 @@ export function parseUci(str: string) {
 }
 
 /** Normalizes a move: e.g. castling is e1g1 instead of e1h1. */
-export function normalizeMove(pos: Chess, move: NormalMove | undefined) {
-  if (!move || !move["from"]) return move
+export function normalizeMove(pos: Chess, move: NormalMove) {
+  if (!move.from) return move
   const side = castlingSide(pos, move)
   if (!side) return move
   const delta = side === "a" ? -2 : 2
@@ -58,17 +58,19 @@ export function chessFromFen(fen: string) {
 }
 
 /** Represents a score in white's perspective. */
-export function scoreWhitePov(turn: "w" | "b", score: Score) {
-  if (score === undefined) return score
+export function scoreWhitePov(turn: "w" | "b", score: Score): Score
+/** Represents a score in white's perspective. */
+export function scoreWhitePov(turn: "w" | "b", score: Score | undefined): Score | undefined
+export function scoreWhitePov(turn: "w" | "b", score: Score | undefined) {
+  if (score === undefined) return undefined
   return turn === "b" ? { ...score, value: -score.value } : score
 }
 
 /** Formats a score. */
-export function formatScore(turn: "w" | "b", score: Score) {
-  if (!score) return ""
-  if (!isFinite(score.value)) return ""
+export function formatScore(turn: "w" | "b", score: Score | undefined) {
   const w = scoreWhitePov(turn, score)
-  switch (score.type) {
+  if (!w || !isFinite(w.value)) return "?"
+  switch (w.type) {
     case "cp": {
       const value = w.value / 100
       return value === 0 ? "0.00" : value < 0 ? `−${(-value).toFixed(2)}` : `+${value.toFixed(2)}`
@@ -163,11 +165,12 @@ export function classifyMove(score: Score, best: Score) {
       return k
     }
   }
+  return "unknown"
 }
 
 /** Returns the color of a move based on its classification. */
 export function moveQuality(score: Score, best: Score) {
-  return moveQualities[classifyMove(score, best)]
+  return moveQualities[classifyMove(score, best) ?? "unknown"]
 }
 
 /** Returns a random element from an array, weighted by its weight. */
@@ -200,21 +203,31 @@ export function existsBrilliantMove(data: NodeData, humanProbThreshold = 0.03) {
   const best = data.eval
   // If the position is super-losing (cp < -500) then there can't be a brilliant move.
   if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
-  const hasObviousGoodMove = data.moveAnalyses.some(
-    ([, a]) =>
-      humanProbability(a) >= humanProbThreshold && (a.score === undefined || moveQuality(a.score, best).threshold < 0.1)
-  )
+  const hasObviousGoodMove = data.moveAnalyses.some(([, a]) => {
+    const p = humanProbability(a)
+    return (
+      p !== undefined &&
+      p >= humanProbThreshold &&
+      (a.score === undefined || moveQuality(a.score, best).threshold < 0.1)
+    )
+  })
   return !hasObviousGoodMove
 }
 
 /** Checks if the text input is currently focused. */
 export function isTextFocused() {
   const el = document.activeElement
-  return (
-    el &&
-    ((el.tagName === "INPUT" &&
-      !["checkbox", "radio", "button", "submit", "color", "range", "file"].includes(el["type"])) ||
-      el.tagName === "TEXTAREA" ||
-      el["isContentEditable"])
-  )
+
+  if (!el || !(el instanceof HTMLElement)) return false
+
+  if (el instanceof HTMLInputElement) {
+    const nonTextTypes = ["checkbox", "radio", "button", "submit", "color", "range", "file"]
+    return !nonTextTypes.includes(el.type)
+  }
+
+  if (el instanceof HTMLTextAreaElement) {
+    return true
+  }
+
+  return el.isContentEditable
 }

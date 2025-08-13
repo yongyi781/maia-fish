@@ -1,5 +1,5 @@
 import { electronApp, is } from "@electron-toolkit/utils"
-import { ChildProcessWithoutNullStreams, spawn } from "child_process"
+import { type ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import path, { join } from "path"

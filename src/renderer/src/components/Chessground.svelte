@@ -14,7 +14,7 @@
      * stylesheet than the default.
      */
     class: className = "cg-default-style",
-    brushes = undefined as { [color: string]: DrawBrush },
+    brushes = undefined as { [color: string]: DrawBrush } | undefined,
     ...restProps
   } = $props()
 
@@ -202,7 +202,7 @@
         enabled: false
       }
     }
-    if (brushes) config.drawable.brushes = brushes as DrawBrushes
+    if (brushes) config.drawable!.brushes = brushes as DrawBrushes
     chessground = Chessground(container, config)
     return chessground.destroy
   })

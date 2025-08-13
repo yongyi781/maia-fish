@@ -1,7 +1,7 @@
 import { fen } from "chessops"
 import { config } from "./config.svelte"
 import { gameState, NodeData } from "./game.svelte"
-import { Score } from "./types"
+import type { Score } from "./types"
 import { chessFromFen, pvUciToSan } from "./utils"
 
 export interface UciInfo {
@@ -19,7 +19,7 @@ export interface UciInfo {
 }
 
 /** Parse a single UCI "info" line into a UciInfo object.  */
-function parseUciInfo(line: string): UciInfo {
+function parseUciInfo(line: string) {
   const tokens = line.trim().split(/\s+/)
   if (tokens.shift() !== "info") {
     throw new Error("Not a UCI info line")
@@ -102,7 +102,7 @@ export class Engine {
   constructor() {
     // Try starting
     config.promise.then(() => {
-      this.start(config.value.engine.path)
+      if (config.value.engine?.path) this.start()
     })
   }
 
@@ -116,14 +116,12 @@ export class Engine {
     window.api.engine.send("ucinewgame")
   }
 
-  /** Starts the engine. */
-  async start(path: string) {
-    if (this.status !== "unloaded") return
-    if (await window.api.engine.start(path)) {
+  /** Starts the engine according to the paths specified in the config. */
+  async start() {
+    if (this.status !== "unloaded" || !config.value.engine) return
+    if (await window.api.engine.start(config.value.engine.path)) {
       this.status = "stopped"
-      this.setOption("Threads", config.value.engine.threads.toString())
-      this.setOption("Hash", config.value.engine.hash.toString())
-      this.setOption("MultiPV", config.value.engine.multiPV.toString())
+      this.setStandardOptions()
       this.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
     } else {
       console.error("Failed to start engine")
@@ -133,6 +131,14 @@ export class Engine {
   /** Sets a UCI option. */
   setOption(name: string, value: string): void {
     window.api.engine.send(`setoption name ${name} value ${value}`)
+  }
+
+  /** Sets standard options. */
+  setStandardOptions() {
+    if (!config.value.engine) return
+    this.setOption("Threads", config.value.engine.threads.toString())
+    this.setOption("Hash", config.value.engine.hash.toString())
+    this.setOption("MultiPV", config.value.engine.multiPV.toString())
   }
 
   /** Starts analyzing. */
@@ -191,6 +197,7 @@ export class Engine {
     for (const line of lines.reverse()) {
       if (line.startsWith("info depth") && line.includes(" pv ")) {
         const info = parseUciInfo(line)
+        if (info.depth === undefined || info.pv === undefined || info.pv.length === 0) continue
         const lan = info.pv[0]
         const index = data.lanToIndex.get(lan)
         if (index === undefined) {
@@ -203,9 +210,13 @@ export class Engine {
           info.pv = pvUciToSan(pos, info.pv)
           Object.assign(entry, info)
         }
+
+        // Step if auto-analyze depth limit is reached
+        const limit = config.value.autoAnalyzeDepthLimit
         if (
           this.autoMode !== "off" &&
-          data.moveAnalyses.every((a) => a[1].depth >= config.value.autoAnalyzeDepthLimit)
+          limit !== undefined &&
+          data.moveAnalyses.every((a) => a[1].depth !== undefined && a[1].depth >= limit)
         ) {
           if (this.autoMode === "forward") {
             if (!gameState.forward()) this.autoMode = "off"

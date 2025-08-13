@@ -31,6 +31,7 @@
     randomChoice,
     randomWeightedChoice
   } from "./utils"
+  import HumanProbability from "./components/HumanProbability.svelte"
 
   const engine = new Engine()
   let chessboard: Chessboard
@@ -158,13 +159,15 @@
     evalBar.reset()
   }
 
-  function analysisNumber(key: string, f: (x: any) => string = (x) => x) {
+  /** Gets current move analysis value by key. */
+  function analysisValue(key: string, f: (x: any) => string = (x) => x) {
     const data = gameState.currentNode.data.moveAnalyses
       .filter((a) => a[1][key] !== undefined)
       .map((a) => a[1][key]) as number[]
     if (data.length > 0) {
       return f(data[0])
     }
+    return "?"
   }
 
   function title() {
@@ -211,9 +214,10 @@
   async function playWeightedHumanMove() {
     // See what Lichess has to say first...
     await gameState.currentNode.fetchLichessStats()
-    const entries = gameState.currentNode.data.moveAnalyses.filter((a) => humanProbability(a[1]) !== undefined)
-    if (entries.length === 0) return
-    const moves: [string, number][] = entries.map((a) => [a[0], humanProbability(a[1])])
+    const moves = gameState.currentNode.data.moveAnalyses
+      .map((a) => [a[0], humanProbability(a[1])] as [string, number | undefined])
+      .filter((x): x is [string, number] => x[1] !== undefined)
+    if (moves.length === 0) return
     const move = randomWeightedChoice(moves)
     gameState.makeMove(parseUci(move))
   }
@@ -273,20 +277,23 @@
       const topHumanUci = currentData.topHumanMoveUci
       if (topHumanUci) {
         const topMove = parseUci(topHumanUci)
-        const score = currentData.moveAnalyses[currentData.lanToIndex.get(topHumanUci)][1].score
-        const best = currentData.eval
-        const shape: DrawShape = {
-          orig: makeSquare(topMove.from),
-          dest: makeSquare(topMove.to),
-          brush: "paleRed"
-        }
-        if (score !== undefined && best !== undefined) {
-          const q = moveQuality(score, best)
-          if (q.threshold >= 0.1 && q.threshold < 9000) {
-            shape.label = { text: q.annotation, fill: q.color }
+        const a = currentData.moveAnalysis(topHumanUci)
+        if (a) {
+          const score = a.score
+          const best = currentData.eval
+          const shape: DrawShape = {
+            orig: makeSquare(topMove.from),
+            dest: makeSquare(topMove.to),
+            brush: "paleRed"
           }
+          if (score !== undefined && best !== undefined) {
+            const q = moveQuality(score, best)
+            if (q.threshold >= 0.1 && q.threshold < 9000) {
+              shape.label = { text: q.annotation, fill: q.color }
+            }
+          }
+          shapes.push(shape)
         }
-        shapes.push(shape)
       }
     }
 
@@ -335,7 +342,7 @@
 
     window.electron.ipcRenderer.on("prevVariation", () => {
       const node = gameState.currentNode
-      if (node.isRoot()) return
+      if (!node.data.parent) return
       const siblings = node.data.parent.children
       const i = siblings.indexOf(node)
       gameState.userSetCurrentNode(siblings[(i + siblings.length - 1) % siblings.length])
@@ -343,7 +350,7 @@
 
     window.electron.ipcRenderer.on("nextVariation", () => {
       const node = gameState.currentNode
-      if (node.isRoot()) return
+      if (!node.data.parent) return
       const siblings = node.data.parent.children
       const i = siblings.indexOf(node)
       gameState.userSetCurrentNode(siblings[(i + 1) % siblings.length])
@@ -352,7 +359,7 @@
     window.electron.ipcRenderer.on("returnToMainline", () => {
       let node = gameState.currentNode
       let res = node
-      while (!node.isRoot()) {
+      while (!!node.data.parent) {
         if (node.data.parent.children[0] !== node) {
           res = node.data.parent
         }
@@ -363,7 +370,7 @@
 
     window.electron.ipcRenderer.on("promoteToMainline", () => {
       let node = gameState.currentNode
-      while (!node.isRoot()) {
+      while (!!node.data.parent) {
         const siblings = node.data.parent.children
         const i = siblings.indexOf(node)
         if (i > 0) {
@@ -415,7 +422,8 @@
     })
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners(undefined)
+      // The electron-toolkit API is missing the correct parameter type string | undefined.
+      window.electron.ipcRenderer.removeAllListeners(undefined!)
     }
   })
 </script>
@@ -455,7 +463,7 @@
     <div class="flex max-h-[576px] flex-1 flex-col gap-2 p-1">
       <div class="flex">
         <button
-          class="flex h-20 flex-1 cursor-pointer items-center gap-3 rounded-l-md outline transition-colors {engine.analyzing
+          class="flex h-20 flex-1 cursor-pointer items-center gap-1 rounded-l-md outline transition-colors {engine.analyzing
             ? 'bg-green-950 outline-green-900'
             : showEngineSettings
               ? 'outline-zinc-700'
@@ -493,21 +501,27 @@
                 turn={gameState.currentNode.data.turn}
               />
             </div>
+            {#if gameState.currentNode.data.parentAnalysisEntry()}
+              <div>
+                <div class="text-gray-500">Prob:</div>
+                <HumanProbability analysis={gameState.currentNode.data.parentAnalysisEntry()!} />
+              </div>
+            {/if}
             <div>
               <div class="text-gray-500">Nodes:</div>
-              {analysisNumber("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
+              {analysisValue("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
             </div>
             <div>
               <div class="text-gray-500">Time:</div>
-              {analysisNumber("time", (x) => `${(x / 1000).toFixed(1)}s`)}
+              {analysisValue("time", (x) => `${(x / 1000).toFixed(1)}s`)}
             </div>
             <div>
               <div class="text-gray-500">N/s:</div>
-              {analysisNumber("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
+              {analysisValue("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
             </div>
             <div>
               <div class="text-gray-500">Hash:</div>
-              {analysisNumber("hashfull", (x) => `${(x / 10).toFixed(1)}%`)}
+              {analysisValue("hashfull", (x) => `${(x / 10).toFixed(1)}%`)}
             </div>
           {/if}
         </button>

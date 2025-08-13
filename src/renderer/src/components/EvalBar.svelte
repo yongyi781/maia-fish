@@ -5,7 +5,7 @@
   const { maxScore = 7, orientation = "white" as "white" | "black", class: className = "", ...restProps } = $props()
 
   let turn: "w" | "b" = $state("w")
-  let score: Score = $state({
+  let score: Score | undefined = $state({
     type: "cp",
     value: 0
   })
@@ -21,7 +21,7 @@
   )
   const blackHeight = $derived(100 - whiteHeight)
 
-  export function update(newTurn: "w" | "b", newScore: Score) {
+  export function update(newTurn: "w" | "b", newScore: Score | undefined) {
     if (newScore) {
       turn = newTurn
       score = newScore
@@ -37,9 +37,9 @@
   }
 </script>
 
-<div {...restProps} class="relative w-6 h-full flex flex-col items-center {className}">
+<div {...restProps} class="relative flex h-full w-6 flex-col items-center {className}">
   <div
-    class="w-full h-full flex flex-col-reverse rounded-sm overflow-hidden {orientation === 'black'
+    class="flex h-full w-full flex-col-reverse overflow-hidden rounded-sm {orientation === 'black'
       ? '-scale-y-100'
       : ''}"
   >

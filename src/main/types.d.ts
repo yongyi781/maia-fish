@@ -1,7 +1,7 @@
-import { pgn } from "chessops"
-import { ElectronAPI } from "@electron-toolkit/preload"
-import { AppConfig } from "../../main/config"
-import { InferenceSession } from "onnxruntime-node"
+import type { pgn } from "chessops"
+import type { ElectronAPI } from "@electron-toolkit/preload"
+import type { AppConfig } from "../../main/config"
+import type { InferenceSession } from "onnxruntime-node"
 
 export interface WindowAPI {
   config: {

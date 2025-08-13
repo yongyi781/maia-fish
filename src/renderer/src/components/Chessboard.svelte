@@ -10,8 +10,8 @@
   import PromotionDialog from "./PromotionDialog.svelte"
 
   let {
-    onmove = undefined as (move: NormalMove) => void,
-    brushes = undefined as { [color: string]: DrawBrush },
+    onmove = undefined as ((move: NormalMove) => void) | undefined,
+    brushes = undefined as { [color: string]: DrawBrush } | undefined,
     ...restProps
   } = $props()
 

@@ -1,7 +1,7 @@
 import { clipboard, contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
-import { AppConfig } from "../main/config"
-import { WindowAPI } from "../main/types"
+import type { WindowAPI } from "../main/types"
+import type { AppConfig } from "../main/config"
 
 // Custom APIs for renderer
 const api: WindowAPI = {
@@ -12,7 +12,10 @@ const api: WindowAPI = {
   engine: {
     choose: () => ipcRenderer.invoke("engine:choose"),
     start: (path: string) => ipcRenderer.invoke("engine:start", path),
-    send: (command: string) => ipcRenderer.send("engine:send", command)
+    send: (command: string) => ipcRenderer.send("engine:send", command),
+    getOptions: function (): Promise<any[]> {
+      throw new Error("Function not implemented.")
+    }
   },
   writeToClipboard: (text: string) => clipboard.writeText(text),
   analyzeMaia: ({ boardInput, eloSelfCategory, eloOppoCategory }) =>

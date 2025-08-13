@@ -1,6 +1,5 @@
 import { Chess, makeUci } from "chessops"
 import { parseFen } from "chessops/fen"
-import { Tensor } from "onnxruntime-node"
 import allPossibleMovesDict from "./all_moves.json"
 import allPossibleMovesReversedDict from "./all_moves_reversed.json"
 import { allLegalMoves } from "./utils"
@@ -303,8 +302,8 @@ export function preprocess(
  */
 export function processOutputs(
   fen: string,
-  logits_maia: Tensor,
-  logits_value: Tensor,
+  logits_maia: any,
+  logits_value: any,
   legalMoves: Float32Array
 ): { policy: Record<string, number>; value: number } {
   const logits = logits_maia["cpuData"] as Float32Array

@@ -4,8 +4,8 @@
   import { formatScore, moveQuality } from "../utils"
 
   type Props = HTMLAttributes<HTMLDivElement> & {
-    score: Score
-    best: Score
+    score: Score | undefined
+    best: Score | undefined
     turn: "w" | "b"
     class?: string
   }
@@ -18,7 +18,5 @@
   style="color: {!score || !best ? 'gray' : moveQuality(score, best)?.color}"
   {...restProps}
 >
-  {#if isFinite(score?.value) && isFinite(best?.value)}
-    {score === undefined ? "?" : formatScore(turn, score)}
-  {/if}
+  {formatScore(turn, score)}
 </div>

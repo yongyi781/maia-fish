@@ -27,6 +27,9 @@ This application allows you to analyze chess positions and games simultaneously 
 - Fix: implement draw by threefold repetition and 50-move rule
 - Fix: auto-analysis doesn't turn off when ending at checkmate
 - Add options for other maia skill levels, maybe (if there is demand)
+- "!" for good moves in brilliant positions that aren't best moves
+- Keep graph resolution at mainline resolution (or finer) when going into variations
+- Refactor server-side engine handling to be more robust
 
 ## Usage
 
