@@ -278,7 +278,7 @@ export class Node implements pgn.Node<NodeData> {
       !config.value?.lichessBookRatings ||
       data.moveNumber > 20 ||
       data.moveAnalyses.length === 0 ||
-      data.moveAnalyses[0][1].lichessProbability !== undefined
+      data.moveAnalyses.some((a) => a[1].lichessProbability !== undefined)
     )
       return
     const url = makeLichessUrl(data.fen)

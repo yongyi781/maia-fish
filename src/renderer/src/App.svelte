@@ -463,7 +463,7 @@
     <div class="flex max-h-[576px] flex-1 flex-col gap-2 p-1">
       <div class="flex">
         <button
-          class="flex h-20 flex-1 cursor-pointer items-center gap-1 rounded-l-md outline transition-colors {engine.analyzing
+          class="flex h-20 flex-1 cursor-pointer items-center gap-1 rounded-l-md outline {engine.analyzing
             ? 'bg-green-950 outline-green-900'
             : showEngineSettings
               ? 'outline-zinc-700'
@@ -526,11 +526,72 @@
           {/if}
         </button>
         <button
-          class="cursor-pointer rounded-r-md px-2 outline outline-zinc-700 transition-colors {showEngineSettings
+          class="cursor-pointer rounded-r-md px-2 outline outline-zinc-700 {showEngineSettings
             ? 'bg-[#555577]'
             : 'bg-[#1a202c] hover:bg-[#333355]'}"
           onclick={() => (showEngineSettings = !showEngineSettings)}>⚙️</button
         >
+      </div>
+      <div class="flex justify-center gap-3" hidden={showEngineSettings}>
+        <div class="flex items-center gap-2">
+          <label for="depth" class="text-sm text-zinc-400 dark:text-zinc-500">Depth</label>
+          <input
+            id="depth"
+            type="number"
+            value={config.value.autoAnalyzeDepthLimit}
+            min="0"
+            oninput={(e) => (config.value.autoAnalyzeDepthLimit = Number(e.currentTarget.value))}
+            class="w-16 rounded-md px-2 py-1 outline outline-zinc-800 dark:border-zinc-600"
+          />
+        </div>
+        <div class="flex items-center justify-center gap-0">
+          <button
+            class="rounded-l-md px-2 py-1 {engine.autoMode === 'backward'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+            title="Shortcut: Shift+F12"
+            onclick={() => (engine.autoMode = engine.autoMode === "backward" ? "off" : "backward")}
+          >
+            ◀◀
+          </button>
+          <button
+            class="rounded-r-md px-2 py-1 {engine.autoMode === 'forward'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+            title="Shortcut: F12"
+            onclick={() => (engine.autoMode = engine.autoMode === "forward" ? "off" : "forward")}
+          >
+            ▶▶
+          </button>
+        </div>
+        <div class="flex items-center justify-center gap-0">
+          <button
+            class="rounded-l-md px-2 py-1 {gameState.maiaAutoMode === 'white'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+            title="Shortcut: F9 (when white)"
+            onclick={() => {
+              gameState.maiaAutoMode = gameState.maiaAutoMode === "white" ? "off" : "white"
+              config.value.hideLinesForBlack = true
+              maybePlayMaiaMove()
+            }}
+          >
+            Maia white
+          </button>
+          <button
+            class="rounded-r-md px-2 py-1 {gameState.maiaAutoMode === 'black'
+              ? 'bg-[#555577]'
+              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+            title="Shortcut: F9 (when black)"
+            onclick={() => {
+              gameState.maiaAutoMode = gameState.maiaAutoMode === "black" ? "off" : "black"
+              config.value.hideLinesForWhite = true
+              maybePlayMaiaMove()
+            }}
+          >
+            Maia black
+          </button>
+        </div>
       </div>
       <div
         class="flex h-1/2 flex-1/2 shrink-0 flex-col rounded-sm outline outline-zinc-700"
@@ -556,67 +617,7 @@
           <Infobox data={gameState.currentNode.data} />
         </div>
       </div>
-      <div class="flex justify-center gap-3" hidden={showEngineSettings}>
-        <div class="flex items-center gap-2">
-          <label for="depth" class="text-sm text-zinc-400 dark:text-zinc-500">Depth</label>
-          <input
-            id="depth"
-            type="number"
-            value={config.value.autoAnalyzeDepthLimit}
-            min="0"
-            oninput={(e) => (config.value.autoAnalyzeDepthLimit = Number(e.currentTarget.value))}
-            class="w-16 rounded-md px-2 py-1 outline outline-zinc-800 dark:border-zinc-600"
-          />
-        </div>
-        <div class="flex items-center justify-center gap-0">
-          <button
-            class="rounded-l-md px-2 py-1 {engine.autoMode === 'backward'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
-            title="Shortcut: Shift+F12"
-            onclick={() => (engine.autoMode = engine.autoMode === "backward" ? "off" : "backward")}
-          >
-            ◀◀
-          </button>
-          <button
-            class="rounded-r-md px-2 py-1 {engine.autoMode === 'forward'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
-            title="Shortcut: F12"
-            onclick={() => (engine.autoMode = engine.autoMode === "forward" ? "off" : "forward")}
-          >
-            ▶▶
-          </button>
-        </div>
-        <div class="flex items-center justify-center gap-0">
-          <button
-            class="rounded-l-md px-2 py-1 {gameState.maiaAutoMode === 'white'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
-            title="Shortcut: F9 (when white)"
-            onclick={() => {
-              gameState.maiaAutoMode = gameState.maiaAutoMode === "white" ? "off" : "white"
-              config.value.hideLinesForBlack = true
-              maybePlayMaiaMove()
-            }}
-          >
-            Maia white
-          </button>
-          <button
-            class="rounded-r-md px-2 py-1 {gameState.maiaAutoMode === 'black'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors dark:outline-zinc-600"
-            title="Shortcut: F9 (when black)"
-            onclick={() => {
-              gameState.maiaAutoMode = gameState.maiaAutoMode === "black" ? "off" : "black"
-              config.value.hideLinesForWhite = true
-              maybePlayMaiaMove()
-            }}
-          >
-            Maia black
-          </button>
-        </div>
-      </div>
+
       <div class="flex-1/2 overflow-auto rounded-sm p-1 outline outline-zinc-700" hidden={showEngineSettings}>
         <MoveList />
       </div>

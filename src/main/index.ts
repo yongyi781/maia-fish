@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
           mainWindow.webContents.send("engine-output", chunks)
           chunks = []
         }
-      }, config.analysisUpdateInterval)
+      }, config.analysisUpdateIntervalMs)
 
       engineProcess.stdout.on("data", (data: Buffer) => {
         chunks.push(...data.toString().split("\n"))

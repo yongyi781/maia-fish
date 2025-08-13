@@ -82,7 +82,7 @@
           <div class="flex flex-wrap items-center gap-1 rounded-md bg-gray-700 p-1">
             {#each hashSizes as size (size)}
               <button
-                class="rounded px-2 py-1 font-mono text-sm transition-colors {eng.hash === size
+                class="rounded px-2 py-1 font-mono text-sm transition-colors duration-75 {eng.hash === size
                   ? 'bg-blue-600'
                   : 'hover:bg-gray-600'}"
                 onclick={() => (eng.hash = size)}

@@ -14,7 +14,7 @@ const defaultConfig = {
   hideLinesForWhite: false,
   hideLinesForBlack: false,
   autoAnalyzeDepthLimit: 12,
-  analysisUpdateInterval: 40,
+  analysisUpdateIntervalMs: 40,
   engine: {
     path: "",
     threads: 2,

@@ -124,7 +124,7 @@
       ctx.fill()
       ctx.beginPath()
       ctx.arc(marker.x + 0.5, marker.y, 3, 0, 2 * Math.PI)
-      ctx.fillStyle = marker.innerColor ?? "white"
+      if (marker.innerColor) ctx.fillStyle = marker.innerColor
       ctx.fill()
     }
 
