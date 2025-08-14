@@ -180,7 +180,7 @@
   }
 
   /** Loads a FEN or PGN. */
-  function loadFenOrPgn(text: string) {
+  async function loadFenOrPgn(text: string) {
     const setup = parseFen(text)
     if (setup.isOk) {
       loadFen(text)
@@ -192,9 +192,9 @@
         headers: pgns[0].headers,
         moves: fromPgnNode(pgns[0].moves, headerFen)
       }
+      await engine.newGame()
       gameState.userSetCurrentNode(gameState.game.moves)
     }
-    return engine.newGame()
   }
 
   /** Copies the PGN to the clipboard. */
@@ -312,10 +312,6 @@
 
   onMount(() => {
     gameState.currentNode = gameState.game.moves
-
-    window.electron.ipcRenderer.on("engine-id", async (_, id: string) => {
-      engine.name = id
-    })
 
     window.electron.ipcRenderer.on("newGame", async () => {
       await engine.newGame()
@@ -484,7 +480,8 @@
                 Stalemate
               {/if}
             </div>
-          {:else if engine.status === "unloaded"}
+            state
+          {:else if engine.state === "unloaded"}
             <div class="w-full text-3xl font-bold">No engine loaded</div>
           {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
             <div class="w-full text-3xl font-bold">Analyze</div>

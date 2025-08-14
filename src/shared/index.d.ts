@@ -19,6 +19,41 @@ export type Score = {
   bound?: "lower" | "upper"
 }
 
+export type EngineState = "unloaded" | "stopped" | "running"
+
+export interface UciOption {
+  name: string
+  type: "string" | "spin" | "button" | "check" | "combo"
+  default?: string
+  min?: number
+  max?: number
+}
+
+export interface UciInfo {
+  name?: string
+  author?: string
+  options: UciOption[]
+}
+
+export interface UciMoveInfo {
+  depth?: number
+  seldepth?: number
+  multipv?: number
+  score?: Score
+  nodes?: number
+  nps?: number
+  hashfull?: number
+  tbhits?: number
+  time?: number // milliseconds
+  pv?: string[] // principal variation moves
+  [key: string]: unknown // for any other fields
+}
+
+export interface UciBestMove {
+  bestmove: string
+  ponder?: string
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI

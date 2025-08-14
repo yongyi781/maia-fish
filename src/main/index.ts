@@ -1,17 +1,17 @@
 import { electronApp, is } from "@electron-toolkit/utils"
-import { type ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import path, { join } from "path"
 import icon from "../../resources/icon.ico?asset"
 import { loadConfig, saveConfig } from "./config"
 import type { AppConfig } from "../shared/config"
+import { UciEngine } from "./uci-engine"
+import type { UciBestMove, UciMoveInfo } from "../shared"
 
 /** Engine output interval, in milliseconds. */
 let mainWindow: BrowserWindow
-let engineProcess: ChildProcessWithoutNullStreams
 let maiaModel: InferenceSession
-let engineOutputTimeout: NodeJS.Timeout | undefined
+const engine = new UciEngine()
 
 function getModelPath() {
   if (app.isPackaged) {
@@ -41,8 +41,7 @@ function createWindow(): void {
   })
 
   mainWindow.on("closed", () => {
-    clearInterval(engineOutputTimeout)
-    engineProcess?.kill()
+    engine?.kill()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -67,55 +66,12 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId("com.electron")
 
+  let config = loadConfig()
   // IPC
   ipcMain.handle("config:get", () => loadConfig())
-
   ipcMain.handle("config:set", (_, newConfig: AppConfig) => {
+    config = newConfig
     saveConfig(newConfig)
-  })
-
-  ipcMain.handle("engine:start", (_, path: string) => {
-    if (engineProcess) engineProcess.kill()
-    if (engineOutputTimeout) {
-      clearInterval(engineOutputTimeout)
-      engineOutputTimeout = undefined
-    }
-    try {
-      engineProcess = spawn(path)
-      let chunks: string[] = []
-      const config = loadConfig()
-      engineOutputTimeout = setInterval(() => {
-        if (chunks.length > 0) {
-          mainWindow.webContents.send("engine-output", chunks)
-          chunks = []
-        }
-      }, config.analysisUpdateIntervalMs)
-
-      engineProcess.stdout.on("data", (data: Buffer) => {
-        chunks.push(...data.toString().split("\n"))
-      })
-
-      return new Promise((resolve) => {
-        const onData = (data: Buffer) => {
-          if (data.toString().includes("readyok")) {
-            engineProcess.stdout.removeListener("data", onData)
-            resolve(true)
-          }
-          for (const line of data.toString().split("\n")) {
-            console.log("Received line:", line)
-            if (line.startsWith("id name")) {
-              mainWindow.webContents.send("engine-id", line.substring(8).trim())
-              break
-            }
-          }
-        }
-        engineProcess.stdout.on("data", onData)
-        engineProcess.stdin.write("uci\nisready\n")
-      })
-    } catch (error) {
-      console.log(error)
-      return false
-    }
   })
 
   ipcMain.handle("engine:choose", async () => {
@@ -132,35 +88,41 @@ app.whenReady().then(async () => {
     return result.filePaths[0]
   })
 
-  ipcMain.on("engine:send", (_, command) => {
-    console.log("SF command:", command)
-    if (engineProcess && engineProcess.stdin.writable) engineProcess.stdin.write(command + "\n")
+  ipcMain.handle("engine:getState", () => engine.state)
+  ipcMain.handle("engine:start", (_, path: string) => engine.start(path))
+  ipcMain.handle("engine:setOption", (_, name: string, value: number | string) => engine.setOption(name, value))
+  ipcMain.handle("engine:newGame", () => engine.newGame())
+  ipcMain.handle("engine:position", (_, str: string) => engine.position(str))
+
+  let engineOutputTimeout: NodeJS.Timeout | undefined
+  ipcMain.handle("engine:go", async () => {
+    const gen = engine.go()
+    let chunks: (UciMoveInfo | UciBestMove)[] = []
+    let done = false
+    clearInterval(engineOutputTimeout)
+    engineOutputTimeout = setInterval(() => {
+      if (chunks.length > 0) {
+        mainWindow.webContents.send("engine:moveinfos", chunks)
+        chunks = []
+      }
+      if (done) {
+        clearInterval(engineOutputTimeout)
+        engineOutputTimeout = undefined
+      }
+    }, config.analysisUpdateIntervalMs)
+
+    let bestMove: UciBestMove | undefined
+    for await (const item of gen) {
+      if (item.bestmove) bestMove = item as UciBestMove
+      chunks.push(item)
+    }
+    done = true
+    if (!bestMove?.bestmove) throw new Error("Expected bestmove when returning from go generator.")
+    return bestMove as UciBestMove
   })
+  ipcMain.handle("engine:stop", () => engine.stop())
 
-  // ipcMain.handle("engine:getOptions", async () => {
-  //   if (!engineProcess) return []
-  //   return new Promise((resolve) => {
-  //     const options: { name: string; type: string; default: string }[] = []
-  //     const listener = (data: Buffer) => {
-  //       const lines = data.toString().split("\n")
-  //       for (const line of lines) {
-  //         if (line.startsWith("option")) {
-  //           const match = line.match(/option name (.*) type (.*) default (.*)/)
-  //           if (match) {
-  //             options.push({ name: match[1], type: match[2], default: match[3] })
-  //           }
-  //         } else if (line.startsWith("uciok")) {
-  //           engineProcess.stdout.removeListener("data", listener)
-  //           resolve(options)
-  //         }
-  //       }
-  //     }
-  //     engineProcess.stdout.on("data", listener)
-  //     engineProcess.stdin.write("uci\n")
-  //   })
-  // })
-
-  ipcMain.handle("analyze-maia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
+  ipcMain.handle("analyzeMaia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
     if (!maiaModel) return
     const feeds: Record<string, Tensor> = {
       boards: new Tensor("float32", boardInput, [1, 18, 8, 8]),
@@ -178,9 +140,6 @@ app.whenReady().then(async () => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-
-  const config = loadConfig()
-  console.log("Config: ", config)
 
   const menu = Menu.buildFromTemplate([
     {

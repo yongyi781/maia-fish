@@ -14,7 +14,7 @@
 
   async function applySettings() {
     if (needsRestart) {
-      engine.status = "unloaded"
+      engine.state = "unloaded"
       await engine.start()
       needsRestart = false
     } else {

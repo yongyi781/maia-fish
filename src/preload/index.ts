@@ -1,7 +1,7 @@
-import { clipboard, contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
+import { clipboard, contextBridge, ipcRenderer } from "electron"
+import type { EngineState, MaiaInput, MaiaOutput, UciBestMove, UciInfo } from "../shared"
 import type { AppConfig } from "../shared/config"
-import type { MaiaInput, MaiaOutput } from "../shared"
 
 // Custom APIs for renderer
 const api = {
@@ -11,14 +11,17 @@ const api = {
   },
   engine: {
     choose: () => ipcRenderer.invoke("engine:choose") as Promise<string>,
-    start: (path: string) => ipcRenderer.invoke("engine:start", path) as Promise<boolean>,
-    send: (command: string) => ipcRenderer.send("engine:send", command),
-    getOptions: function (): Promise<string[]> {
-      throw new Error("Function not implemented.")
-    }
+    getState: () => ipcRenderer.invoke("engine:getState") as Promise<EngineState>,
+    start: (path: string) => ipcRenderer.invoke("engine:start", path) as Promise<UciInfo>,
+    setOption: (name: string, value: number | string) =>
+      ipcRenderer.invoke("engine:setOption", name, value) as Promise<void>,
+    newGame: () => ipcRenderer.invoke("engine:newGame") as Promise<string>,
+    position: (str: string) => ipcRenderer.invoke("engine:position", str) as Promise<void>,
+    go: () => ipcRenderer.invoke("engine:go") as Promise<UciBestMove>,
+    stop: () => ipcRenderer.invoke("engine:stop") as Promise<UciBestMove | undefined>
   },
   writeToClipboard: (text: string) => clipboard.writeText(text),
-  analyzeMaia: (input: MaiaInput) => ipcRenderer.invoke("analyze-maia", input) as Promise<MaiaOutput>
+  analyzeMaia: (input: MaiaInput) => ipcRenderer.invoke("analyzeMaia", input) as Promise<MaiaOutput>
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
