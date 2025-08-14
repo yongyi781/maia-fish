@@ -1,4 +1,4 @@
-import "../../main/types"
+import "../../preload"
 
 /** Evaluation score. */
 export type Score = {

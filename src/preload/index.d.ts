@@ -1,5 +1,5 @@
 import type { ElectronAPI } from "@electron-toolkit/preload"
-import type { AppConfig } from "../../main/config"
+import type { AppConfig } from "../main/config"
 
 export interface WindowAPI {
   config: {
@@ -13,9 +13,9 @@ export interface WindowAPI {
     getOptions(): Promise<string[]>
   }
   writeToClipboard(text: string): void
-  analyzeMaia({
-    boardInput: string,
-    eloSelfCategory: number,
+  analyzeMaia(input: {
+    boardInput: string
+    eloSelfCategory: number
     eloOppoCategory: number
   }): Promise<{ logits: Float32Array; value: Float32Array }>
 }

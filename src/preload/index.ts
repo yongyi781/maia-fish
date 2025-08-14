@@ -1,7 +1,7 @@
 import { clipboard, contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
-import type { WindowAPI } from "../main/types"
 import type { AppConfig } from "../main/config"
+import type { WindowAPI } from "./index.d"
 
 // Custom APIs for renderer
 const api: WindowAPI = {
