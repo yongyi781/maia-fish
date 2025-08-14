@@ -19,7 +19,7 @@ export type Score = {
   bound?: "lower" | "upper"
 }
 
-export type EngineState = "unloaded" | "stopped" | "running"
+export type EngineState = "unloaded" | "idle" | "running" | "waitingBestMoveToIdle" | "waitingBestMoveToRun"
 
 export interface UciOption {
   name: string

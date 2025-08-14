@@ -314,7 +314,6 @@
     gameState.currentNode = gameState.game.moves
 
     window.electron.ipcRenderer.on("newGame", async () => {
-      await engine.newGame()
       loadFen(INITIAL_FEN)
       gameState.userSetCurrentNode(gameState.game.moves)
       evalBar.reset()
@@ -480,7 +479,6 @@
                 Stalemate
               {/if}
             </div>
-            state
           {:else if engine.state === "unloaded"}
             <div class="w-full text-3xl font-bold">No engine loaded</div>
           {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}

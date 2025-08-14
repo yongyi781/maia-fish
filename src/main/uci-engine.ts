@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { EventEmitter } from "events"
 import type { EngineState, UciBestMove, UciInfo, UciMoveInfo, UciOption } from "../shared"
+import readline from "readline"
 
 /** Parse a single UCI "info" line into a UciInfo object.  */
 function parseUciMoveInfo(line: string) {
@@ -76,60 +77,62 @@ function parseBestMove(line: string) {
   return { bestmove: m[1], ponder: m[2] } as UciBestMove
 }
 
+/** Interface to a UCI engine. */
 export class UciEngine extends EventEmitter {
-  state: EngineState = "unloaded"
+  #state: EngineState = "unloaded"
+  private pendingPosition: string | undefined
+  private pendingDepth: number = 0
   private process: ChildProcessWithoutNullStreams | null = null
+  private rl: readline.Interface | null = null
+  private bestMoveResolver: ((bestMove: UciBestMove) => void) | null = null
 
   constructor(private defaultTimeoutMs = 5000) {
     super()
   }
 
-  start(enginePath: string): Promise<UciInfo> {
-    if (this.process) this.kill()
-    return new Promise((resolve, reject) => {
-      try {
-        this.process = spawn(enginePath)
-
-        this.process.stdout.on("data", (data: Buffer) => {
-          const output = data.toString()
-          // Split by lines and emit each line
-          output.split(/\r?\n/).forEach((line) => {
-            if (line) this.emit("output", line)
-          })
-        })
-
-        this.process.stderr.on("data", (data: Buffer) => {
-          const error = data.toString()
-          this.emit("error", `Engine error: ${error}`)
-        })
-
-        this.process.on("close", (code: number) => {
-          this.emit("close", code)
-          this.process = null
-        })
-
-        this.process.on("error", (err: Error) => {
-          this.emit("error", `Process error: ${err.message}`)
-          reject(err)
-        })
-
-        this.uci().then(resolve).catch(reject)
-      } catch (error) {
-        this.emit("error", `Failed to start engine: ${error}`)
-        reject(error)
-      }
-    })
+  get state() {
+    return this.#state
   }
 
-  kill(): void {
-    if (this.process) {
-      this.process.kill()
-      this.process = null
+  set state(state: EngineState) {
+    if (state !== this.#state) {
+      this.#state = state
+      this.emit("stateChange", state)
     }
   }
 
+  start(enginePath: string) {
+    this.kill()
+    this.process = spawn(enginePath)
+    this.rl = readline.createInterface({
+      input: this.process.stdout,
+      crlfDelay: Infinity
+    })
+    this.rl.on("line", (line: string) => {
+      this.handleLine(line)
+    })
+
+    this.process.stderr.on("data", (data: Buffer) => {
+      const error = data.toString()
+      console.warn("Engine Error:", error)
+    })
+
+    this.process.on("error", (err: Error) => {
+      throw err
+    })
+
+    return this.uci()
+  }
+
+  kill(): void {
+    this.rl?.close()
+    this.process?.kill()
+    this.process = null
+    this.state = "unloaded"
+  }
+
   /** uci: returns parsed { name, author, options } */
-  async uci(timeoutMs = this.defaultTimeoutMs): Promise<UciInfo> {
+  async uci(timeoutMs = this.defaultTimeoutMs) {
     let name: string | undefined
     let author: string | undefined
     const options: UciOption[] = []
@@ -167,14 +170,14 @@ export class UciEngine extends EventEmitter {
         }
       }
     )
-    this.state = "stopped"
-    return { name, author, options }
+    this.state = "idle"
+    return { name, author, options } as UciInfo
   }
 
   /** Unblocks when the engine is ready. */
   async isready(timeoutMs = this.defaultTimeoutMs) {
     await this.sendAndWaitFor("isready", (x) => x === "readyok", timeoutMs)
-    this.state = "stopped"
+    this.state = "idle"
   }
 
   async newGame() {
@@ -185,55 +188,59 @@ export class UciEngine extends EventEmitter {
     return this.isready()
   }
 
-  position(str: string) {
-    if (this.state === "unloaded") throw new Error("Called position while engine is unloaded.")
-    // if (this.state !== "stopped") throw new Error("Called position while engine is not in the stopped state.")
-    this.send(`position ${str}`)
+  setOption(name: string, value: number | string) {
+    if (this.state !== "idle") throw new Error("Called setOption while engine is not in the stopped state.")
+    this.send(`setoption name ${name} value ${value}`)
   }
 
-  /** Sends "go", and returns an async generator that generates info lines. */
-  async go(depth?: number) {
-    if (this.state !== "stopped") return
-    this.state = "running"
-    await this.sendAndWaitFor(
-      `go${depth ? ` depth ${depth}` : ""}`,
-      (x) => x.startsWith("bestmove"),
-      this.defaultTimeoutMs,
-      (line) => {
-        if (line.startsWith("bestmove")) {
-          this.emit("bestmove", parseBestMove(line))
-        } else if (line.startsWith("info depth") && line.includes(" pv ")) {
-          this.emit("info", parseUciMoveInfo(line))
-        }
-      }
-    )
-    this.state = "stopped"
-  }
-
-  /** Sends "stop" and returns best move. */
-  async stop(timeoutMs = this.defaultTimeoutMs) {
-    if (this.state !== "running") return
-    try {
-      let bestMove: UciBestMove | undefined
-      await this.sendAndWaitFor(
-        "stop",
-        (x) => x.startsWith("bestmove"),
-        timeoutMs,
-        (line) => {
-          if (line.startsWith("bestmove")) {
-            bestMove = parseBestMove(line)
-          }
-        }
-      )
-      return bestMove
-    } finally {
-      this.state = "stopped"
+  /** Sends "go". */
+  go(depth = 0) {
+    switch (this.state) {
+      case "idle":
+        if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
+        this.send(`go${depth ? ` depth ${depth}` : ""}`)
+        this.state = "running"
+        break
+      case "waitingBestMoveToIdle":
+        this.state = "waitingBestMoveToRun"
+        this.pendingDepth = depth
+        break
+      default:
+        break
     }
   }
 
-  setOption(name: string, value: number | string) {
-    if (this.state !== "stopped") throw new Error("Called setOption while engine is not in the stopped state.")
-    this.send(`setoption name ${name} value ${value}`)
+  /** Sends "stop", and returns a promise that waits for "bestmove". */
+  stop() {
+    switch (this.state) {
+      case "running":
+        this.send("stop")
+        this.state = "waitingBestMoveToIdle"
+        return new Promise<UciBestMove | undefined>((resolve) => {
+          this.bestMoveResolver = resolve
+        })
+      case "waitingBestMoveToRun":
+        this.state = "waitingBestMoveToIdle"
+        return Promise.resolve(undefined)
+      default:
+        return Promise.resolve(undefined)
+    }
+  }
+
+  /** Changes the position. */
+  position(str: string) {
+    switch (this.state) {
+      case "waitingBestMoveToIdle":
+        this.state = "waitingBestMoveToRun"
+        break
+      case "running":
+        this.send("stop")
+        this.state = "waitingBestMoveToRun"
+        break
+      default:
+        break
+    }
+    this.pendingPosition = str
   }
 
   /** Sends a command. Returns immediately. */
@@ -242,6 +249,40 @@ export class UciEngine extends EventEmitter {
     if (!this.process.stdin) throw new Error("Engine process stdin not available.")
     console.log("SF command:", command)
     this.process.stdin.write(`${command}\n`)
+  }
+
+  /** State change. */
+  private handleBestMove() {
+    switch (this.state) {
+      case "idle":
+        throw new Error("handleBestMove: Should not be in state idle.")
+      case "running":
+      case "waitingBestMoveToIdle":
+        this.state = "idle"
+        this.pendingDepth = 0
+        this.pendingPosition = undefined
+        break
+      case "waitingBestMoveToRun":
+        if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
+        this.send(`go${this.pendingDepth ? ` depth ${this.pendingDepth}` : ""}`)
+        this.state = "running"
+        this.pendingDepth = 0
+        this.pendingPosition = undefined
+        break
+      case "unloaded":
+        break
+    }
+  }
+
+  private handleLine(line: string) {
+    if (line.startsWith("bestmove")) {
+      this.handleBestMove()
+      this.bestMoveResolver?.(parseBestMove(line))
+      this.bestMoveResolver = null
+      this.emit("bestmove")
+    } else if (line.startsWith("info depth") && line.includes(" pv ")) {
+      this.emit("info", parseUciMoveInfo(line))
+    }
   }
 
   private async sendAndWaitFor(
@@ -265,7 +306,7 @@ export class UciEngine extends EventEmitter {
         }
       }
 
-      this.on("output", handleOutput)
+      this.rl?.on("line", handleOutput)
       this.send(command)
     })
   }

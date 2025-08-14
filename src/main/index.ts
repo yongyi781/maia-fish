@@ -3,15 +3,16 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "ele
 import { InferenceSession, Tensor } from "onnxruntime-node"
 import path, { join } from "path"
 import icon from "../../resources/icon.ico?asset"
-import { loadConfig, saveConfig } from "./config"
+import type { EngineState, UciMoveInfo } from "../shared"
 import type { AppConfig } from "../shared/config"
+import { loadConfig, saveConfig } from "./config"
 import { UciEngine } from "./uci-engine"
-import type { UciBestMove, UciMoveInfo } from "../shared"
 
 /** Engine output interval, in milliseconds. */
 let mainWindow: BrowserWindow
 let maiaModel: InferenceSession
 const engine = new UciEngine()
+let engineOutputTimeout: NodeJS.Timeout | undefined
 
 function getModelPath() {
   if (app.isPackaged) {
@@ -41,7 +42,8 @@ function createWindow(): void {
   })
 
   mainWindow.on("closed", () => {
-    engine?.kill()
+    clearInterval(engineOutputTimeout)
+    engine.kill()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -93,65 +95,26 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:setOption", (_, name: string, value: number | string) => engine.setOption(name, value))
   ipcMain.handle("engine:newGame", () => engine.newGame())
   ipcMain.handle("engine:position", (_, str: string) => engine.position(str))
-
-  let engineOutputTimeout: NodeJS.Timeout | undefined
-  ipcMain.handle("engine:go", async () => {
-    let chunks: (UciMoveInfo | UciBestMove)[] = []
-    let bestMove: UciBestMove | undefined
-    let resolveGoPromise: ((value: UciBestMove) => void) | undefined
-    let rejectGoPromise: ((reason?: Error) => void) | undefined
-
-    const goPromise = new Promise<UciBestMove>((resolve, reject) => {
-      resolveGoPromise = resolve
-      rejectGoPromise = reject
-    })
-
-    const handleInfo = (info: UciMoveInfo) => {
-      chunks.push(info)
-    }
-
-    const handleBestMove = (bm: UciBestMove) => {
-      bestMove = bm
-      // Send any remaining chunks before resolving
-      if (chunks.length > 0) {
-        mainWindow.webContents.send("engine:moveinfos", chunks)
-        chunks = []
-      }
-      clearInterval(engineOutputTimeout)
-      engineOutputTimeout = undefined
-      engine.removeListener("info", handleInfo)
-      engine.removeListener("bestmove", handleBestMove)
-      if (resolveGoPromise) {
-        resolveGoPromise(bestMove)
-      }
-    }
-
-    engine.on("info", handleInfo)
-    engine.on("bestmove", handleBestMove)
-
-    clearInterval(engineOutputTimeout)
-    engineOutputTimeout = setInterval(() => {
-      if (chunks.length > 0) {
-        mainWindow.webContents.send("engine:moveinfos", chunks)
-        chunks = []
-      }
-    }, config.analysisUpdateIntervalMs)
-
-    try {
-      await engine.go()
-      return await goPromise
-    } catch (error) {
-      clearInterval(engineOutputTimeout)
-      engineOutputTimeout = undefined
-      engine.removeListener("info", handleInfo)
-      engine.removeListener("bestmove", handleBestMove)
-      if (rejectGoPromise) {
-        rejectGoPromise(error instanceof Error ? error : new Error(String(error)))
-      }
-      throw error
-    }
-  })
+  ipcMain.handle("engine:go", async () => engine.go())
   ipcMain.handle("engine:stop", () => engine.stop())
+
+  const chunks: UciMoveInfo[] = []
+  engine.on("info", (info: UciMoveInfo) => {
+    chunks.push(info)
+  })
+  engine.on("stateChange", (newState: EngineState) => {
+    if (newState === "running") {
+      engineOutputTimeout = setInterval(() => {
+        if (chunks.length > 0) {
+          if (!mainWindow.isDestroyed()) mainWindow.webContents.send("engine:moveinfos", chunks)
+          chunks.length = 0
+        }
+      }, config.analysisUpdateIntervalMs)
+    } else {
+      clearInterval(engineOutputTimeout)
+    }
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send("stateChange", newState)
+  })
 
   ipcMain.handle("analyzeMaia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
     if (!maiaModel) return
