@@ -102,7 +102,7 @@
 
       // Human difficulty rating marker
       const lHumanEval = l.data.humanEval
-      if (lEval && lHumanEval && lHumanEval.value) {
+      if (lEval && lHumanEval && lHumanEval.value !== undefined) {
         const c = classifyMove(lHumanEval, lEval)
         if (c) {
           const q = c === "best" ? moveQualities.good : moveQualities[c]
@@ -177,7 +177,7 @@
 
 <div
   {...restProps}
-  class="relative h-full rounded-sm {className}"
+  class="relative h-full {className}"
   style="border-color: {gameState.isMainline ? mainlineColor : variationColor};"
 >
   <canvas
