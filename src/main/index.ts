@@ -96,29 +96,60 @@ app.whenReady().then(async () => {
 
   let engineOutputTimeout: NodeJS.Timeout | undefined
   ipcMain.handle("engine:go", async () => {
-    const gen = engine.go()
     let chunks: (UciMoveInfo | UciBestMove)[] = []
-    let done = false
+    let bestMove: UciBestMove | undefined
+    let resolveGoPromise: ((value: UciBestMove) => void) | undefined
+    let rejectGoPromise: ((reason?: Error) => void) | undefined
+
+    const goPromise = new Promise<UciBestMove>((resolve, reject) => {
+      resolveGoPromise = resolve
+      rejectGoPromise = reject
+    })
+
+    const handleInfo = (info: UciMoveInfo) => {
+      chunks.push(info)
+    }
+
+    const handleBestMove = (bm: UciBestMove) => {
+      bestMove = bm
+      // Send any remaining chunks before resolving
+      if (chunks.length > 0) {
+        mainWindow.webContents.send("engine:moveinfos", chunks)
+        chunks = []
+      }
+      clearInterval(engineOutputTimeout)
+      engineOutputTimeout = undefined
+      engine.removeListener("info", handleInfo)
+      engine.removeListener("bestmove", handleBestMove)
+      if (resolveGoPromise) {
+        resolveGoPromise(bestMove)
+      }
+    }
+
+    engine.on("info", handleInfo)
+    engine.on("bestmove", handleBestMove)
+
     clearInterval(engineOutputTimeout)
     engineOutputTimeout = setInterval(() => {
       if (chunks.length > 0) {
         mainWindow.webContents.send("engine:moveinfos", chunks)
         chunks = []
       }
-      if (done) {
-        clearInterval(engineOutputTimeout)
-        engineOutputTimeout = undefined
-      }
     }, config.analysisUpdateIntervalMs)
 
-    let bestMove: UciBestMove | undefined
-    for await (const item of gen) {
-      if (item.bestmove) bestMove = item as UciBestMove
-      chunks.push(item)
+    try {
+      await engine.go()
+      return await goPromise
+    } catch (error) {
+      clearInterval(engineOutputTimeout)
+      engineOutputTimeout = undefined
+      engine.removeListener("info", handleInfo)
+      engine.removeListener("bestmove", handleBestMove)
+      if (rejectGoPromise) {
+        rejectGoPromise(error instanceof Error ? error : new Error(String(error)))
+      }
+      throw error
     }
-    done = true
-    if (!bestMove?.bestmove) throw new Error("Expected bestmove when returning from go generator.")
-    return bestMove as UciBestMove
   })
   ipcMain.handle("engine:stop", () => engine.stop())
 
@@ -161,7 +192,7 @@ app.whenReady().then(async () => {
           label: "Paste FEN or PGN",
           accelerator: "Ctrl+Shift+V",
           click() {
-            mainWindow.webContents.send("paste", clipboard.readText())
+            mainWindow.webContents.send("paste", clipboard.readText().trim())
           }
         }
       ]
