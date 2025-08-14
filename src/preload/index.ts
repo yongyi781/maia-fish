@@ -1,29 +1,24 @@
 import { clipboard, contextBridge, ipcRenderer } from "electron"
 import { electronAPI } from "@electron-toolkit/preload"
-import type { AppConfig } from "../main/config"
-import type { WindowAPI } from "./index.d"
+import type { AppConfig } from "../shared/config"
+import type { MaiaInput, MaiaOutput } from "../shared"
 
 // Custom APIs for renderer
-const api: WindowAPI = {
+const api = {
   config: {
-    get: () => ipcRenderer.invoke("config:get"),
+    get: () => ipcRenderer.invoke("config:get") as Promise<AppConfig>,
     set: (config: AppConfig) => ipcRenderer.invoke("config:set", config)
   },
   engine: {
-    choose: () => ipcRenderer.invoke("engine:choose"),
-    start: (path: string) => ipcRenderer.invoke("engine:start", path),
+    choose: () => ipcRenderer.invoke("engine:choose") as Promise<string>,
+    start: (path: string) => ipcRenderer.invoke("engine:start", path) as Promise<boolean>,
     send: (command: string) => ipcRenderer.send("engine:send", command),
     getOptions: function (): Promise<string[]> {
       throw new Error("Function not implemented.")
     }
   },
   writeToClipboard: (text: string) => clipboard.writeText(text),
-  analyzeMaia: ({ boardInput, eloSelfCategory, eloOppoCategory }) =>
-    ipcRenderer.invoke("analyze-maia", {
-      boardInput,
-      eloSelfCategory,
-      eloOppoCategory
-    })
+  analyzeMaia: (input: MaiaInput) => ipcRenderer.invoke("analyze-maia", input) as Promise<MaiaOutput>
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
@@ -42,3 +37,5 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.api = api
 }
+
+export type WindowAPI = typeof api

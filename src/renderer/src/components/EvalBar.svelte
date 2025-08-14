@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Score } from "../types"
+  import type { Score } from "../../../shared"
   import { scoreWhitePov } from "../utils"
 
   const { maxScore = 7, orientation = "white" as "white" | "black", class: className = "", ...restProps } = $props()

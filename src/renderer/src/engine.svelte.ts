@@ -1,8 +1,8 @@
 import { fen } from "chessops"
 import { config } from "./config.svelte"
 import { gameState, NodeData } from "./game.svelte"
-import type { Score } from "./types"
 import { chessFromFen, pvUciToSan } from "./utils"
+import type { Score } from "../../shared"
 
 export interface UciInfo {
   depth?: number

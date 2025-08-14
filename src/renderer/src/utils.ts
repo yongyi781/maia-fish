@@ -3,7 +3,7 @@ import { castlingSide } from "chessops/chess"
 import { parseFen } from "chessops/fen"
 import { makeSanAndPlay } from "chessops/san"
 import { humanProbability, NodeData, rawEval } from "./game.svelte"
-import type { Score } from "./types"
+import type { Score } from "../../shared"
 
 export function delay(delayInms: number) {
   return new Promise((resolve) => setTimeout(resolve, delayInms))

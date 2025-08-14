@@ -2,8 +2,8 @@ import { Chess, fen, makeUci, type NormalMove, pgn } from "chessops"
 import { makeFen } from "chessops/fen"
 import { defaultHeaders } from "chessops/pgn"
 import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
+import type { Score } from "../../shared"
 import { config } from "./config.svelte"
-import type { Score } from "./types"
 import { allLegalMoves, chessFromFen, classifyMove, existsBrilliantMove, normalizeMove, parseUci } from "./utils"
 
 function makeLichessUrl(fen: string) {

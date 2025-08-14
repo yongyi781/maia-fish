@@ -1,10 +1,16 @@
-import ts from "@electron-toolkit/eslint-config-ts"
 import prettier from "@electron-toolkit/eslint-config-prettier"
+import ts from "@electron-toolkit/eslint-config-ts"
+import { includeIgnoreFile } from "@eslint/compat"
+import js from "@eslint/js"
 import svelte from "eslint-plugin-svelte"
 import svelteConfig from "./svelte.config.mjs"
+import { fileURLToPath } from "node:url"
+
+const gitignorePath = fileURLToPath(new URL("./.gitignore", import.meta.url))
 
 export default ts.config(
-  { ignores: ["**/node_modules", "**/dist", "**/out"] },
+  includeIgnoreFile(gitignorePath),
+  js.configs.recommended,
   ...ts.configs.recommended,
   ...svelte.configs.recommended,
   prettier,
