@@ -1,7 +1,5 @@
-import type { pgn } from "chessops"
 import type { ElectronAPI } from "@electron-toolkit/preload"
 import type { AppConfig } from "../../main/config"
-import type { InferenceSession } from "onnxruntime-node"
 
 export interface WindowAPI {
   config: {
@@ -12,14 +10,14 @@ export interface WindowAPI {
     choose(): Promise<string>
     start(path: string): Promise<boolean>
     send(command: string): void
-    getOptions(): Promise<any[]>
+    getOptions(): Promise<string[]>
   }
   writeToClipboard(text: string): void
   analyzeMaia({
     boardInput: string,
     eloSelfCategory: number,
     eloOppoCategory: number
-  }): Promise<InferenceSession.OnnxValueMapType>
+  }): Promise<{ logits: Float32Array; value: Float32Array }>
 }
 
 declare global {

@@ -39,7 +39,7 @@ export function normalizeMove(pos: Chess, move: NormalMove) {
 /** Returns all legal moves from a position. */
 export function allLegalMoves(pos: Chess): NormalMove[] {
   const promotionRoles: Role[] = ["queen", "knight", "rook", "bishop"]
-  let res: NormalMove[] = []
+  const res: NormalMove[] = []
   for (const [from, dests] of pos.allDests()) {
     const promotions: Array<Role | undefined> =
       squareRank(from) === (pos.turn === "white" ? 6 : 1) && pos.board.pawn.has(from) ? promotionRoles : [undefined]
@@ -85,8 +85,8 @@ export function formatScore(turn: "w" | "b", score: Score | undefined) {
 /** Converts a UCI principal variation to SAN. */
 export function pvUciToSan(chess: Chess, pv: string[]) {
   const pos = chess.clone()
-  let res: string[] = []
-  for (let uci of pv) {
+  const res: string[] = []
+  for (const uci of pv) {
     const move = parseUci(uci)
     if (!pos.isLegal(move)) return []
     res.push(makeSanAndPlay(pos, move))

@@ -92,7 +92,7 @@
   //   // pendingMove.promotion = piece
   //   onmove?.(pendingMove)
   // }
-  function promotionCallback(square: any) {
+  function promotionCallback(square: Key) {
     return new Promise<Role>((resolve) => {
       const element = mount(PromotionDialog, {
         target: container,

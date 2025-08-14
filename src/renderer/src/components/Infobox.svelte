@@ -51,7 +51,7 @@
 
 <div class="relative h-full">
   <div class="absolute max-h-full w-full overflow-auto pt-2">
-    {#each sortedAnalyses(data) as entry}
+    {#each sortedAnalyses(data) as entry (entry[0])}
       <button class="flex w-full items-center gap-2 hover:bg-zinc-700" onmousedown={(e) => handleClick(e, entry)}>
         <Score class="min-w-12 text-right" score={entry[1].score} best={data.eval} turn={data.turn} />
         <HumanProbability class="min-w-12 text-right" analysis={entry[1]} />
@@ -59,7 +59,7 @@
         <div class="relative flex flex-1 items-center">
           <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis" title={entry[1].pv.join(" ")}>
             {#if !hideLines()}
-              {#each entry[1].pv as move, i}
+              {#each entry[1].pv as move, i (i)}
                 <span style="color: {(i + (data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span>&nbsp;
               {/each}
             {/if}

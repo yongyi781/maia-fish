@@ -1,23 +1,24 @@
 <script lang="ts">
-  import type { Color } from "chessops"
+  import type { Key } from "chessground/types"
+  import type { Color, Role } from "chessops"
 
   interface Props {
-    square: any
+    square: Key
     color?: Color
-    callback: any
-    class?: any
+    callback: (piece: Role) => void
+    class?: string
   }
 
-  let { square, color = "white", callback, class: className = void 0 }: Props = $props()
+  let { square, color = "white", callback, class: className }: Props = $props()
 
   const marginLeft = (100 / 8) * (color === "white" ? squareToFileNumber(square) : 7 - squareToFileNumber(square))
   const white = square.charAt(1) === "8"
   const black = !white
-  const pieces = ["queen", "knight", "rook", "bishop"]
+  const pieces: Role[] = ["queen", "knight", "rook", "bishop"]
   function squareToFileNumber(square2: string) {
     return square2.charCodeAt(0) - 97
   }
-  function keyboardCallback(event: KeyboardEvent & { currentTarget: EventTarget & HTMLDivElement }, promotion: string) {
+  function keyboardCallback(event: KeyboardEvent & { currentTarget: EventTarget & HTMLDivElement }, promotion: Role) {
     if (event.key === "Enter" || event.key === " ") {
       callback(promotion)
     }
@@ -25,7 +26,7 @@
 </script>
 
 <div class="dialog {className}">
-  {#each pieces as piece, i}
+  {#each pieces as piece, i (i)}
     {@const putPiecesFromTop = (white && color === "white") || (black && color === "black")}
     {@const marginTop = putPiecesFromTop ? i * 12.5 : 100 - 12.5 * (i + 1)}
     <div class="square" style="margin-left:{marginLeft}%;margin-top:{marginTop}%;">

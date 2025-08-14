@@ -276,7 +276,7 @@ export function preprocess(
   const legalMovesArr = new Float32Array(Object.keys(allPossibleMoves).length)
 
   const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap()
-  for (let move of allLegalMoves(pos)) {
+  for (const move of allLegalMoves(pos)) {
     const moveIndex = allPossibleMoves[makeUci(move)]
     if (moveIndex !== undefined) {
       legalMovesArr[moveIndex] = 1.0
@@ -300,15 +300,12 @@ export function preprocess(
  * @param legalMoves - An array indicating the legal moves.
  * @returns An object containing the policy (move probabilities) and the value (win probability).
  */
-export function processOutputs(
+export async function processOutputs(
   fen: string,
-  logits_maia: any,
-  logits_value: any,
+  logits: Float32Array,
+  value: Float32Array,
   legalMoves: Float32Array
-): { policy: Record<string, number>; value: number } {
-  const logits = logits_maia["cpuData"] as Float32Array
-  const value = logits_value["cpuData"] as Float32Array
-
+): Promise<{ policy: Record<string, number>; value: number }> {
   let winProb = Math.min(Math.max((value[0] as number) / 2 + 0.5, 0), 1)
 
   let black_flag = false

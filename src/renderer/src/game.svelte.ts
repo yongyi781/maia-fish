@@ -55,7 +55,7 @@ export interface MoveAnalysis {
   nps?: number
   /** Timestamp of the last update. For throttling. */
   lastUpdate?: DOMHighResTimeStamp
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface Opening {
@@ -213,6 +213,7 @@ export class Node implements pgn.Node<NodeData> {
   }
 
   *mainlineNodes(): Iterable<Node> {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     let node: Node = this
     while (node.children.length) {
       const child = node.children[0]
@@ -226,6 +227,7 @@ export class Node implements pgn.Node<NodeData> {
   }
 
   end(): Node {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     let node: Node = this
     while (node.children.length) node = node.children[0]
     return node
@@ -233,8 +235,9 @@ export class Node implements pgn.Node<NodeData> {
 
   /** Returns the path from the root to this node. */
   pathToRoot(): Node[] {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     let node: Node | undefined = this
-    let res = []
+    const res = []
     while (node) {
       res.push(node)
       node = node.data.parent
@@ -253,8 +256,9 @@ export class Node implements pgn.Node<NodeData> {
   /** Adds a list of moves. */
   addMoves(moves: string[]) {
     const pos = chessFromFen(this.data.fen)
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     let node: Node = this
-    for (let san of moves) {
+    for (const san of moves) {
       const move = normalizeMove(pos, parseSan(pos, san) as NormalMove)
       if (!move) {
         console.warn(`Unexpected illegal move: ${san}`)
@@ -293,13 +297,19 @@ export class Node implements pgn.Node<NodeData> {
       console.warn("Failed to fetch lichess stats", response)
       return
     }
-    const json = await response.json()
-    const totalGames = json.moves.reduce((a: number, b: any) => a + b.white + b.draws + b.black, 0)
+    interface MoveStatistic {
+      uci: string
+      white: number
+      draws: number
+      black: number
+    }
+    const json = (await response.json()) as { moves: MoveStatistic[]; opening: Opening }
+    const totalGames = json.moves.reduce((a, b) => a + b.white + b.draws + b.black, 0)
     if (totalGames < config.value.lichessThreshold) return
     const pos = chessFromFen(data.fen)
     if (json.opening) data.opening = json.opening
     for (const [lan, a] of data.moveAnalyses) {
-      const move = json.moves.find((m: any) => makeUci(normalizeMove(pos, parseUci(m.uci))) === lan)
+      const move = json.moves.find((m) => makeUci(normalizeMove(pos, parseUci(m.uci))) === lan)
       if (!move) a.lichessProbability = 0
       else a.lichessProbability = (move.white + move.draws + move.black) / totalGames
     }

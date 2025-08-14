@@ -15,7 +15,7 @@ export interface UciInfo {
   tbhits?: number
   time?: number // milliseconds
   pv?: string[] // principal variation moves
-  [key: string]: any // for any other fields
+  [key: string]: unknown // for any other fields
 }
 
 /** Parse a single UCI "info" line into a UciInfo object.  */
@@ -164,7 +164,7 @@ export class Engine {
     window.api.engine.send("stop")
     return new Promise<void>((resolve) => {
       this.#stopOff = window.electron.ipcRenderer.on("engine-output", (_, lines: string[]) => {
-        for (let line of lines) {
+        for (const line of lines) {
           if (line.startsWith("bestmove")) {
             this.status = "stopped"
             this.#stopOff?.()

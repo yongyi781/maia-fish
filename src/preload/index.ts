@@ -13,7 +13,7 @@ const api: WindowAPI = {
     choose: () => ipcRenderer.invoke("engine:choose"),
     start: (path: string) => ipcRenderer.invoke("engine:start", path),
     send: (command: string) => ipcRenderer.send("engine:send", command),
-    getOptions: function (): Promise<any[]> {
+    getOptions: function (): Promise<string[]> {
       throw new Error("Function not implemented.")
     }
   },

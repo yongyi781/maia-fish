@@ -23,7 +23,7 @@
   {@const children = node.children}
   <MoveListItem node={children[0]} />
   {#if children.length > 1}
-    {#each children as child, i}
+    {#each children as child, i (i)}
       {#if i > 0}
         <span class="text-gray-500">(</span>
         <MoveListItem node={child} />

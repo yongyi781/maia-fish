@@ -166,14 +166,15 @@ app.whenReady().then(async () => {
   //   })
   // })
 
-  ipcMain.handle("analyze-maia", (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
+  ipcMain.handle("analyze-maia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {
     if (!maiaModel) return
     const feeds: Record<string, Tensor> = {
       boards: new Tensor("float32", boardInput, [1, 18, 8, 8]),
       elo_self: new Tensor("int64", [eloSelfCategory]),
       elo_oppo: new Tensor("int64", [eloOppoCategory])
     }
-    return maiaModel.run(feeds)
+    const { logits_maia, logits_value } = await maiaModel.run(feeds)
+    return { logits: logits_maia.data, value: logits_value.data }
   })
 
   createWindow()

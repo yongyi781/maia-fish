@@ -132,12 +132,12 @@
   async function populateMaiaProbabilities() {
     const currentNode = gameState.currentNode
     const { boardInput, eloSelfCategory, eloOppoCategory, legalMoves } = preprocess(currentNode.data.fen, 1900, 1900)
-    const { logits_maia, logits_value } = await window.api.analyzeMaia({
+    const { logits, value } = await window.api.analyzeMaia({
       boardInput,
       eloSelfCategory,
       eloOppoCategory
     })
-    const outputs = processOutputs(currentNode.data.fen, logits_maia, logits_value, legalMoves)
+    const outputs = await processOutputs(currentNode.data.fen, logits, value, legalMoves)
     for (let [lan, a] of currentNode.data.moveAnalyses) {
       a.maiaProbability = outputs.policy[lan]
     }
@@ -159,7 +159,7 @@
   }
 
   /** Gets current move analysis value by key. */
-  function analysisValue(key: string, f: (x: any) => string = (x) => x) {
+  function analysisValue(key: string, f: (x: number) => string) {
     const data = gameState.currentNode.data.moveAnalyses
       .filter((a) => a[1][key] !== undefined)
       .map((a) => a[1][key]) as number[]
@@ -198,7 +198,7 @@
   }
 
   /** Copies the PGN to the clipboard. */
-  function copyPgnToClipboard(e: any) {
+  function copyPgnToClipboard(e: ClipboardEvent) {
     if (isTextFocused()) return
     e.preventDefault()
     const pos = chessFromFen(gameState.root.end().data.fen)
@@ -207,7 +207,7 @@
       gameState.game.headers.set("Result", winner === "white" ? "1-0" : winner === "black" ? "0-1" : "1/2-1/2")
     }
     const pgn = makePgn(gameState.game)
-    e.clipboardData.setData("text/plain", pgn)
+    e.clipboardData?.setData("text/plain", pgn)
   }
 
   async function playWeightedHumanMove() {
@@ -358,7 +358,7 @@
     window.electron.ipcRenderer.on("returnToMainline", () => {
       let node = gameState.currentNode
       let res = node
-      while (!!node.data.parent) {
+      while (node.data.parent) {
         if (node.data.parent.children[0] !== node) {
           res = node.data.parent
         }
@@ -369,7 +369,7 @@
 
     window.electron.ipcRenderer.on("promoteToMainline", () => {
       let node = gameState.currentNode
-      while (!!node.data.parent) {
+      while (node.data.parent) {
         const siblings = node.data.parent.children
         const i = siblings.indexOf(node)
         if (i > 0) {
