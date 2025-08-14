@@ -5,7 +5,6 @@
   import { INITIAL_FEN, parseFen } from "chessops/fen"
   import { defaultHeaders, makePgn, parsePgn } from "chessops/pgn"
   import { onMount, untrack } from "svelte"
-  import "./app.css"
   import Chessboard from "./components/Chessboard.svelte"
   import EngineSettings from "./components/EngineSettings.svelte"
   import EvalBar from "./components/EvalBar.svelte"
@@ -215,8 +214,8 @@
     // See what Lichess has to say first...
     await gameState.currentNode.fetchLichessStats()
     const moves = gameState.currentNode.data.moveAnalyses
-      .map((a) => [a[0], humanProbability(a[1])] as [string, number | undefined])
-      .filter((x): x is [string, number] => x[1] !== undefined)
+      .map((a) => [a[0], humanProbability(a[1])] as [string, number])
+      .filter((x) => x[1] > 0)
     if (moves.length === 0) return
     const move = randomWeightedChoice(moves)
     gameState.makeMove(parseUci(move))

@@ -29,7 +29,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^4.0.0",
-    "@sveltejs/vite-plugin-svelte": "^6.1.1",
+    "@sveltejs/vite-plugin-svelte": "^6.1.2",
     "@tailwindcss/vite": "^4.1.11",
     "@types/node": "^24.2.1",
     "autoprefixer": "^10.4.21",

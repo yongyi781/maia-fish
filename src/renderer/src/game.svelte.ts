@@ -58,6 +58,11 @@ export interface MoveAnalysis {
   [key: string]: any
 }
 
+export interface Opening {
+  eco: string
+  name: string
+}
+
 /** Returns the human probability of a move. If it's undefined, returns 0. */
 export function humanProbability(a: MoveAnalysis) {
   return (a.lichessProbability !== undefined ? a.lichessProbability : a.maiaProbability) ?? 0
@@ -87,6 +92,7 @@ export class NodeData implements pgn.PgnNodeData {
   startingComments?: string[]
   comments?: string[]
   nags?: number[]
+  opening?: Opening = $state()
 
   constructor(data?: Partial<NodeData>) {
     Object.assign(this, data)
@@ -291,6 +297,7 @@ export class Node implements pgn.Node<NodeData> {
     const totalGames = json.moves.reduce((a: number, b: any) => a + b.white + b.draws + b.black, 0)
     if (totalGames < config.value.lichessThreshold) return
     const pos = chessFromFen(data.fen)
+    if (json.opening) data.opening = json.opening
     for (const [lan, a] of data.moveAnalyses) {
       const move = json.moves.find((m: any) => makeUci(normalizeMove(pos, parseUci(m.uci))) === lan)
       if (!move) a.lichessProbability = 0
