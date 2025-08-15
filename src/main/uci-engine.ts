@@ -198,8 +198,8 @@ export class UciEngine extends EventEmitter {
     switch (this.state) {
       case "idle":
         if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
-        this.send(`go${depth ? ` depth ${depth}` : ""}`)
         this.state = "running"
+        this.send(`go ${depth ? `depth ${depth}` : "infinite"}`)
         break
       case "waitingBestMoveToIdle":
         this.state = "waitingBestMoveToRun"
@@ -214,8 +214,8 @@ export class UciEngine extends EventEmitter {
   stop() {
     switch (this.state) {
       case "running":
-        this.send("stop")
         this.state = "waitingBestMoveToIdle"
+        this.send("stop")
         return new Promise<UciBestMove | undefined>((resolve) => {
           this.bestMoveResolver = resolve
         })
@@ -234,8 +234,8 @@ export class UciEngine extends EventEmitter {
         this.state = "waitingBestMoveToRun"
         break
       case "running":
-        this.send("stop")
         this.state = "waitingBestMoveToRun"
+        this.send("stop")
         break
       default:
         break
@@ -251,7 +251,7 @@ export class UciEngine extends EventEmitter {
     this.process.stdin.write(`${command}\n`)
   }
 
-  /** State change. */
+  /** State change on receiving "bestmove". */
   private handleBestMove() {
     switch (this.state) {
       case "idle":
@@ -263,9 +263,9 @@ export class UciEngine extends EventEmitter {
         this.pendingPosition = undefined
         break
       case "waitingBestMoveToRun":
-        if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
-        this.send(`go${this.pendingDepth ? ` depth ${this.pendingDepth}` : ""}`)
         this.state = "running"
+        if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
+        this.send(`go ${this.pendingDepth ? `depth ${this.pendingDepth}` : "infinite"}`)
         this.pendingDepth = 0
         this.pendingPosition = undefined
         break
@@ -280,7 +280,7 @@ export class UciEngine extends EventEmitter {
       this.bestMoveResolver?.(parseBestMove(line))
       this.bestMoveResolver = null
       this.emit("bestmove")
-    } else if (line.startsWith("info depth") && line.includes(" pv ")) {
+    } else if (this.state === "running" && line.startsWith("info depth") && line.includes(" pv ")) {
       this.emit("info", parseUciMoveInfo(line))
     }
   }

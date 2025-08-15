@@ -98,7 +98,7 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:go", async () => engine.go())
   ipcMain.handle("engine:stop", () => engine.stop())
 
-  const chunks: UciMoveInfo[] = []
+  let chunks: UciMoveInfo[] = []
   engine.on("info", (info: UciMoveInfo) => {
     chunks.push(info)
   })
@@ -107,11 +107,12 @@ app.whenReady().then(async () => {
       engineOutputTimeout = setInterval(() => {
         if (chunks.length > 0) {
           if (!mainWindow.isDestroyed()) mainWindow.webContents.send("engine:moveinfos", chunks)
-          chunks.length = 0
+          chunks = []
         }
       }, config.analysisUpdateIntervalMs)
     } else {
       clearInterval(engineOutputTimeout)
+      chunks = []
     }
     if (!mainWindow.isDestroyed()) mainWindow.webContents.send("stateChange", newState)
   })

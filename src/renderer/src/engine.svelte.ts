@@ -28,39 +28,7 @@ export class Engine {
         this.pos = chessFromFen(this.currentNode.data.fen)
       }
     })
-    window.electron.ipcRenderer.on("engine:moveinfos", (_, infos: UciMoveInfo[]) => {
-      const data = this.currentNode.data
-      for (const item of infos.reverse()) {
-        const info = item as UciMoveInfo
-        if (info.depth === undefined || info.pv === undefined || info.pv.length === 0) continue
-        const lan = info.pv[0]
-        const index = data.lanToIndex.get(lan)
-        if (index === undefined) {
-          console.warn("Unexpected undefined index", lan)
-          continue
-        }
-        const entry = data.moveAnalyses[index][1]
-        if (entry && (!entry.depth || info.depth >= entry.depth)) {
-          // Convert the PV to SAN.
-          info.pv = pvUciToSan(this.pos, info.pv)
-          Object.assign(entry, info)
-        }
-        // Step if auto-analyze depth limit is reached
-        const limit = config.value.autoAnalyzeDepthLimit
-        if (
-          this.autoMode !== "off" &&
-          limit !== undefined &&
-          data.moveAnalyses.every((a) => a[1].depth !== undefined && a[1].depth >= limit)
-        ) {
-          if (this.autoMode === "forward") {
-            if (!gameState.forward()) this.autoMode = "off"
-          } else if (this.autoMode === "backward") {
-            if (!gameState.back()) this.autoMode = "off"
-          }
-          break
-        }
-      }
-    })
+    window.electron.ipcRenderer.on("engine:moveinfos", (_, infos: UciMoveInfo[]) => this.processOutput(infos))
   }
 
   get analyzing() {
@@ -123,5 +91,39 @@ export class Engine {
   toggleAnalyze() {
     if (this.analyzing) this.stop()
     else this.go()
+  }
+
+  private processOutput(infos: UciMoveInfo[]): void {
+    const data = this.currentNode.data
+    for (const item of infos.reverse()) {
+      const info = item as UciMoveInfo
+      if (info.depth === undefined || info.pv === undefined || info.pv.length === 0) continue
+      const lan = info.pv[0]
+      const index = data.lanToIndex.get(lan)
+      if (index === undefined) {
+        console.warn("Data seems to be for old position", lan)
+        break
+      }
+      const entry = data.moveAnalyses[index][1]
+      if (entry && (!entry.depth || info.depth >= entry.depth)) {
+        // Convert the PV to SAN.
+        info.pv = pvUciToSan(this.pos, info.pv)
+        Object.assign(entry, info)
+      }
+      // Step if auto-analyze depth limit is reached
+      const limit = config.value.autoAnalyzeDepthLimit
+      if (
+        this.autoMode !== "off" &&
+        limit !== undefined &&
+        data.moveAnalyses.every((a) => a[1].depth !== undefined && a[1].depth >= limit)
+      ) {
+        if (this.autoMode === "forward") {
+          if (!gameState.forward()) this.autoMode = "off"
+        } else if (this.autoMode === "backward") {
+          if (!gameState.back()) this.autoMode = "off"
+        }
+        break
+      }
+    }
   }
 }
