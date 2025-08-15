@@ -84,7 +84,6 @@ export class UciEngine extends EventEmitter {
   private pendingDepth: number = 0
   private process: ChildProcessWithoutNullStreams | null = null
   private rl: readline.Interface | null = null
-  private bestMoveResolver: ((bestMove: UciBestMove) => void) | null = null
 
   constructor(private defaultTimeoutMs = 5000) {
     super()
@@ -97,6 +96,7 @@ export class UciEngine extends EventEmitter {
   set state(state: EngineState) {
     if (state !== this.#state) {
       this.#state = state
+      console.log("\x1b[32mEngine state:", state, "\x1b[0m")
       this.emit("stateChange", state)
     }
   }
@@ -175,9 +175,9 @@ export class UciEngine extends EventEmitter {
   }
 
   /** Unblocks when the engine is ready. */
-  async isready(timeoutMs = this.defaultTimeoutMs) {
-    await this.sendAndWaitFor("isready", (x) => x === "readyok", timeoutMs)
-    this.state = "idle"
+  async isready() {
+    this.send("isready")
+    return new Promise<void>((resolve) => this.once("readyok", resolve))
   }
 
   async newGame() {
@@ -193,51 +193,60 @@ export class UciEngine extends EventEmitter {
     this.send(`setoption name ${name} value ${value}`)
   }
 
-  /** Sends "go". */
+  /** Sends "go", and returns a promise that waits for "bestmove" if depth > 0. */
   go(depth = 0) {
     switch (this.state) {
       case "idle":
         if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
-        this.state = "running"
         this.send(`go ${depth ? `depth ${depth}` : "infinite"}`)
+        this.state = "running"
         break
+      case "running":
+        throw new Error("Called go while engine is already running.")
       case "waitingBestMoveToIdle":
+      case "waitingBestMoveToRun":
         this.state = "waitingBestMoveToRun"
         this.pendingDepth = depth
         break
       default:
         break
     }
+    return depth
+      ? new Promise<UciBestMove | undefined>((resolve) => this.once("bestmove", resolve))
+      : Promise.resolve(undefined)
   }
 
   /** Sends "stop", and returns a promise that waits for "bestmove". */
   stop() {
     switch (this.state) {
       case "running":
+        this.send("stop")
         this.state = "waitingBestMoveToIdle"
-        return this.sendStop()
+        break
       case "waitingBestMoveToRun":
         this.state = "waitingBestMoveToIdle"
-        return Promise.resolve(undefined)
+        break
       default:
-        return Promise.resolve(undefined)
+        break
     }
+    return this.waitBestMovePromise()
   }
 
-  /** Changes the position. */
-  async position(str: string) {
+  /** Changes the position. Waits for "bestmove" if applicable. */
+  position(str: string) {
+    this.pendingPosition = str
     switch (this.state) {
       case "waitingBestMoveToIdle":
         this.state = "waitingBestMoveToRun"
         break
       case "running":
-        this.state = "waitingBestMoveToRun"
         this.send("stop")
+        this.state = "waitingBestMoveToRun"
         break
       default:
         break
     }
-    this.pendingPosition = str
+    return this.waitBestMovePromise()
   }
 
   /** Sends a command. Returns immediately. */
@@ -248,11 +257,10 @@ export class UciEngine extends EventEmitter {
     this.process.stdin.write(`${command}\n`)
   }
 
-  private sendStop() {
-    this.send("stop")
-    return new Promise<UciBestMove | undefined>((resolve) => {
-      this.bestMoveResolver = resolve
-    })
+  private waitBestMovePromise() {
+    return this.state === "waitingBestMoveToIdle" || this.state === "waitingBestMoveToRun"
+      ? new Promise<UciBestMove | undefined>((resolve) => this.once("bestmove", resolve))
+      : Promise.resolve(undefined)
   }
 
   /** State change on receiving "bestmove". */
@@ -267,25 +275,26 @@ export class UciEngine extends EventEmitter {
         this.pendingPosition = undefined
         break
       case "waitingBestMoveToRun":
-        this.state = "running"
         if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
         this.send(`go ${this.pendingDepth ? `depth ${this.pendingDepth}` : "infinite"}`)
+        this.state = "running"
         this.pendingDepth = 0
         this.pendingPosition = undefined
         break
-      case "unloaded":
+      default:
         break
     }
   }
 
   private handleLine(line: string) {
     if (line.startsWith("bestmove")) {
+      this.emit("bestmove", parseBestMove(line))
+      console.log(`\x1b[33m  ${line}\x1b[0m`)
       this.handleBestMove()
-      this.bestMoveResolver?.(parseBestMove(line))
-      this.bestMoveResolver = null
-      this.emit("bestmove")
-    } else if (this.state === "running" && line.startsWith("info depth")) {
+    } else if (line.startsWith("info depth")) {
       this.emit("info", parseUciMoveInfo(line))
+    } else if (line === "readyok") {
+      this.emit("readyok")
     }
   }
 

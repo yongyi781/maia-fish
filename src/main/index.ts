@@ -102,6 +102,10 @@ app.whenReady().then(async () => {
   engine.on("info", (info: UciMoveInfo) => {
     chunks.push(info)
   })
+  engine.on("bestmove", () => {
+    clearInterval(engineOutputTimeout)
+    chunks = []
+  })
   engine.on("stateChange", (newState: EngineState) => {
     if (newState === "running") {
       engineOutputTimeout = setInterval(() => {
@@ -110,9 +114,6 @@ app.whenReady().then(async () => {
           chunks = []
         }
       }, config.analysisUpdateIntervalMs)
-    } else {
-      clearInterval(engineOutputTimeout)
-      chunks = []
     }
     if (!mainWindow.isDestroyed()) mainWindow.webContents.send("stateChange", newState)
   })

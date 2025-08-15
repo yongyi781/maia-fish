@@ -549,7 +549,10 @@
               ? 'bg-[#555577]'
               : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
             title="Shortcut: Shift+F12"
-            onclick={() => (engine.autoMode = engine.autoMode === "backward" ? "off" : "backward")}
+            onclick={() => {
+              gameState.maiaAutoMode = "off"
+              engine.autoMode = engine.autoMode === "backward" ? "off" : "backward"
+            }}
           >
             ◀◀
           </button>
@@ -558,7 +561,10 @@
               ? 'bg-[#555577]'
               : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
             title="Shortcut: F12"
-            onclick={() => (engine.autoMode = engine.autoMode === "forward" ? "off" : "forward")}
+            onclick={() => {
+              gameState.maiaAutoMode = "off"
+              engine.autoMode = engine.autoMode === "forward" ? "off" : "forward"
+            }}
           >
             ▶▶
           </button>

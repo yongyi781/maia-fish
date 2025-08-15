@@ -1,7 +1,7 @@
 import { Chess, fen } from "chessops"
 import type { EngineState, UciMoveInfo, UciOption } from "../../shared"
 import { config } from "./config.svelte"
-import { gameState, Node } from "./game.svelte"
+import { gameState, NodeData } from "./game.svelte"
 import { chessFromFen, pvUciToSan } from "./utils"
 
 /** Engine client. */
@@ -12,23 +12,18 @@ export class Engine {
   autoMode: "forward" | "backward" | "off" = $state("off")
   validOptions: UciOption[] = []
   /** Can be slightly out of sync with main game state, so we use these. */
-  private currentNode: Node = gameState.currentNode
-  private pos: Chess = chessFromFen(this.currentNode.data.fen)
+  private currentNodeData: NodeData = gameState.currentNode.data
+  private pos: Chess = chessFromFen(this.currentNodeData.fen)
 
   constructor() {
     // Try starting
     config.promise.then(() => {
       if (config.value.engine?.path) this.start()
     })
-    window.electron.ipcRenderer.on("stateChange", (_, newState: EngineState) => {
-      console.log("New state:", newState)
-      this.state = newState
-      if (newState === "running") {
-        this.currentNode = gameState.currentNode
-        this.pos = chessFromFen(this.currentNode.data.fen)
-      }
-    })
-    window.electron.ipcRenderer.on("engine:moveinfos", (_, infos: UciMoveInfo[]) => this.processOutput(infos))
+    window.electron.ipcRenderer.on("stateChange", (_, newState: EngineState) => (this.state = newState))
+    window.electron.ipcRenderer.on("engine:moveinfos", (_, infos: UciMoveInfo[]) =>
+      this.processOutput(infos, this.currentNodeData)
+    )
   }
 
   get analyzing() {
@@ -82,9 +77,12 @@ export class Engine {
 
   /** Updates the engine position. */
   async updatePosition(initialFen: string, moves: string[]) {
+    const currentData = gameState.currentNode.data
     let str = `${initialFen === fen.INITIAL_FEN ? "startpos" : "fen " + initialFen}`
     if (moves.length > 0) str += ` moves ${moves.join(" ")}`
-    window.api.engine.position(str)
+    await window.api.engine.position(str)
+    this.currentNodeData = currentData
+    this.pos = chessFromFen(this.currentNodeData.fen)
   }
 
   /** Toggles analyze mode. */
@@ -93,15 +91,14 @@ export class Engine {
     else this.go()
   }
 
-  private processOutput(infos: UciMoveInfo[]): void {
-    const data = this.currentNode.data
+  private processOutput(infos: UciMoveInfo[], data: NodeData): void {
     for (const item of infos.reverse()) {
       const info = item as UciMoveInfo
       if (info.depth !== undefined && info.pv !== undefined && info.pv.length > 0) {
         const lan = info.pv[0]
         const index = data.lanToIndex.get(lan)
         if (index === undefined) {
-          console.warn(`The move ${lan} seems to be for an old position`)
+          console.debug(`Stale move ignored: ${lan}`)
           break
         }
         const entry = data.moveAnalyses[index][1]
