@@ -99,21 +99,21 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:stop", () => engine.stop())
 
   let chunks: UciMoveInfo[] = []
-  engine.on("info", (info: UciMoveInfo) => {
-    chunks.push(info)
-  })
+  const flush = () => {
+    if (chunks.length > 0) {
+      mainWindow.webContents.send("engine:moveinfos", chunks)
+      chunks = []
+    }
+  }
+  engine.on("info", (info: UciMoveInfo) => chunks.push(info))
   engine.on("bestmove", () => {
     clearInterval(engineOutputTimeout)
-    chunks = []
+    flush()
   })
   engine.on("stateChange", (newState: EngineState) => {
     if (newState === "running") {
-      engineOutputTimeout = setInterval(() => {
-        if (!mainWindow.isDestroyed() && chunks.length > 0) {
-          mainWindow.webContents.send("engine:moveinfos", chunks)
-          chunks = []
-        }
-      }, config.analysisUpdateIntervalMs)
+      clearInterval(engineOutputTimeout)
+      engineOutputTimeout = setInterval(flush, config.analysisUpdateIntervalMs)
     }
     if (!mainWindow.isDestroyed()) mainWindow.webContents.send("stateChange", newState)
   })

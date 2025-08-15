@@ -48,7 +48,7 @@ export class Engine {
   }
 
   /** Stops the engine and sends a "new game" command to the engine. */
-  async newGame() {
+  newGame() {
     return window.api.engine.newGame()
   }
 
@@ -66,12 +66,12 @@ export class Engine {
   }
 
   /** Starts analyzing. */
-  async go() {
-    window.api.engine.go()
+  go() {
+    return window.api.engine.go()
   }
 
   /** Stops the engine and waits for `bestmove`. */
-  async stop() {
+  stop() {
     return window.api.engine.stop()
   }
 

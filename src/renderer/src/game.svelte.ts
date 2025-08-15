@@ -286,7 +286,7 @@ export class Node implements pgn.Node<NodeData> {
     if (
       !config.value?.lichessBookSpeeds ||
       !config.value?.lichessBookRatings ||
-      data.moveNumber > 20 ||
+      data.moveNumber > config.value.maiaBookPliesLimit ||
       data.moveAnalyses.length === 0 ||
       data.moveAnalyses.some((a) => a[1].lichessProbability !== undefined)
     )
@@ -294,7 +294,7 @@ export class Node implements pgn.Node<NodeData> {
     const url = makeLichessUrl(data.fen)
     const response = await fetch(url)
     if (!response.ok) {
-      console.warn("Failed to fetch lichess stats", response)
+      console.warn("Failed to fetch lichess stats, falling back to Maia weights", response)
       return
     }
     interface MoveStatistic {

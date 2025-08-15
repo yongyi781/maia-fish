@@ -17,12 +17,23 @@
     return `oklch(${0.4 + 0.6 * Math.min(1, 2 * p)} ${useLichess() ? "0.08" : "0"} 250)`
   }
 
+  function title() {
+    if (useLichess()) {
+      let str = "Lichess"
+      if (analysis.maiaProbability !== undefined) {
+        str += ` (Maia: ${(analysis.maiaProbability * 100).toFixed()}%)`
+      }
+      return str
+    }
+    return "Maia"
+  }
+
   function text() {
     const p = humanProbability(analysis)
     return p === undefined ? "?" : `${(p * 100).toFixed()}%`
   }
 </script>
 
-<div {...restProps} style:color={color()} title={useLichess() ? "Lichess" : "Maia"}>
+<div {...restProps} style:color={color()} title={title()}>
   {text()}
 </div>

@@ -18,6 +18,27 @@ export function randomChoice<T>(arr: T[]) {
   return arr[randInt(0, arr.length - 1)]
 }
 
+/** Returns a random element from an array, weighted by its weight. */
+export function randomWeightedChoice<T>(arr: [T, number][]) {
+  let totalWeight = 0
+  for (const item of arr) {
+    totalWeight += item[1]
+  }
+  if (totalWeight <= 0) {
+    throw new Error("Total weight must be positive.")
+  }
+
+  const t = totalWeight * Math.random()
+  let total = 0
+  for (const item of arr) {
+    total += item[1]
+    if (total >= t) {
+      return item[0]
+    }
+  }
+  throw new Error("Unexpected error in weighted choice.")
+}
+
 /** Parses a UCI move string. */
 export function parseUci(str: string) {
   return cParseUci(str) as NormalMove
@@ -171,27 +192,6 @@ export function classifyMove(score: Score, best: Score) {
 /** Returns the color of a move based on its classification. */
 export function moveQuality(score: Score, best: Score) {
   return moveQualities[classifyMove(score, best) ?? "unknown"]
-}
-
-/** Returns a random element from an array, weighted by its weight. */
-export function randomWeightedChoice<T>(arr: [T, number][]) {
-  let totalWeight = 0
-  for (const item of arr) {
-    totalWeight += item[1]
-  }
-  if (totalWeight <= 0) {
-    throw new Error("Total weight must be positive.")
-  }
-
-  const t = totalWeight * Math.random()
-  let total = 0
-  for (const item of arr) {
-    total += item[1]
-    if (total >= t) {
-      return item[0]
-    }
-  }
-  throw new Error("Unexpected error in weighted choice.")
 }
 
 /**

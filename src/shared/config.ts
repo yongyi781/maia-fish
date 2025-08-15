@@ -1,4 +1,4 @@
-export const CONFIG_VERSION = 2
+export const CONFIG_VERSION = 1
 
 export const defaultConfig = {
   version: CONFIG_VERSION,
@@ -11,6 +11,7 @@ export const defaultConfig = {
   hideLinesForBlack: false,
   autoAnalyzeDepthLimit: 12,
   analysisUpdateIntervalMs: 40,
+  maiaBookPliesLimit: 20,
   engine: {
     path: "",
     threads: 2,

@@ -202,7 +202,8 @@ export class UciEngine extends EventEmitter {
         this.state = "running"
         break
       case "running":
-        throw new Error("Called go while engine is already running.")
+        console.warn("Called go while engine is already running.")
+        return Promise.resolve(undefined)
       case "waitingBestMoveToIdle":
       case "waitingBestMoveToRun":
         this.state = "waitingBestMoveToRun"
