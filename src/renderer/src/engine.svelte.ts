@@ -97,18 +97,19 @@ export class Engine {
     const data = this.currentNode.data
     for (const item of infos.reverse()) {
       const info = item as UciMoveInfo
-      if (info.depth === undefined || info.pv === undefined || info.pv.length === 0) continue
-      const lan = info.pv[0]
-      const index = data.lanToIndex.get(lan)
-      if (index === undefined) {
-        console.warn("Data seems to be for old position", lan)
-        break
-      }
-      const entry = data.moveAnalyses[index][1]
-      if (entry && (!entry.depth || info.depth >= entry.depth)) {
-        // Convert the PV to SAN.
-        info.pv = pvUciToSan(this.pos, info.pv)
-        Object.assign(entry, info)
+      if (info.depth !== undefined && info.pv !== undefined && info.pv.length > 0) {
+        const lan = info.pv[0]
+        const index = data.lanToIndex.get(lan)
+        if (index === undefined) {
+          console.warn(`The move ${lan} seems to be for an old position`)
+          break
+        }
+        const entry = data.moveAnalyses[index][1]
+        if (entry && (!entry.depth || info.depth >= entry.depth)) {
+          // Convert the PV to SAN.
+          info.pv = pvUciToSan(this.pos, info.pv)
+          Object.assign(entry, info)
+        }
       }
       // Step if auto-analyze depth limit is reached
       const limit = config.value.autoAnalyzeDepthLimit

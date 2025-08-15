@@ -215,10 +215,7 @@ export class UciEngine extends EventEmitter {
     switch (this.state) {
       case "running":
         this.state = "waitingBestMoveToIdle"
-        this.send("stop")
-        return new Promise<UciBestMove | undefined>((resolve) => {
-          this.bestMoveResolver = resolve
-        })
+        return this.sendStop()
       case "waitingBestMoveToRun":
         this.state = "waitingBestMoveToIdle"
         return Promise.resolve(undefined)
@@ -228,7 +225,7 @@ export class UciEngine extends EventEmitter {
   }
 
   /** Changes the position. */
-  position(str: string) {
+  async position(str: string) {
     switch (this.state) {
       case "waitingBestMoveToIdle":
         this.state = "waitingBestMoveToRun"
@@ -244,11 +241,18 @@ export class UciEngine extends EventEmitter {
   }
 
   /** Sends a command. Returns immediately. */
-  private send(command: string): void {
+  private send(command: string) {
     if (!this.process) throw new Error("Engine process not running.")
     if (!this.process.stdin) throw new Error("Engine process stdin not available.")
     console.log("SF command:", command)
     this.process.stdin.write(`${command}\n`)
+  }
+
+  private sendStop() {
+    this.send("stop")
+    return new Promise<UciBestMove | undefined>((resolve) => {
+      this.bestMoveResolver = resolve
+    })
   }
 
   /** State change on receiving "bestmove". */
@@ -280,7 +284,7 @@ export class UciEngine extends EventEmitter {
       this.bestMoveResolver?.(parseBestMove(line))
       this.bestMoveResolver = null
       this.emit("bestmove")
-    } else if (this.state === "running" && line.startsWith("info depth") && line.includes(" pv ")) {
+    } else if (this.state === "running" && line.startsWith("info depth")) {
       this.emit("info", parseUciMoveInfo(line))
     }
   }
@@ -292,6 +296,11 @@ export class UciEngine extends EventEmitter {
     onOutput?: (line: string) => void
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      if (!this.rl) {
+        reject("Engine process not running or stdin not available.")
+        return
+      }
+
       const timeout = setTimeout(() => {
         this.removeListener("output", handleOutput)
         reject(new Error(`${command} command timed out.`))
@@ -306,7 +315,7 @@ export class UciEngine extends EventEmitter {
         }
       }
 
-      this.rl?.on("line", handleOutput)
+      this.rl.on("line", handleOutput)
       this.send(command)
     })
   }

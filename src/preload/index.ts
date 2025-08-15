@@ -15,9 +15,9 @@ const api = {
     start: (path: string) => ipcRenderer.invoke("engine:start", path) as Promise<UciInfo>,
     setOption: (name: string, value: number | string) =>
       ipcRenderer.invoke("engine:setOption", name, value) as Promise<void>,
-    newGame: () => ipcRenderer.invoke("engine:newGame") as Promise<string>,
+    newGame: () => ipcRenderer.invoke("engine:newGame") as Promise<void>,
     position: (str: string) => ipcRenderer.invoke("engine:position", str) as Promise<void>,
-    go: () => ipcRenderer.invoke("engine:go") as Promise<UciBestMove>,
+    go: () => ipcRenderer.invoke("engine:go") as Promise<void>,
     stop: () => ipcRenderer.invoke("engine:stop") as Promise<UciBestMove | undefined>
   },
   writeToClipboard: (text: string) => clipboard.writeText(text),

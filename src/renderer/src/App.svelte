@@ -114,9 +114,12 @@
         break
       case "F9":
         gameState.maiaAutoMode = gameState.chess.turn
+        if (gameState.chess.turn === "white") config.value.hideLinesForBlack = true
+        else config.value.hideLinesForWhite = true
         maybePlayMaiaMove()
         break
       case "F12":
+        gameState.maiaAutoMode = "off"
         engine.autoMode = e.shiftKey ? "backward" : "forward"
         engine.go()
         break
@@ -404,7 +407,9 @@
       if (moves.length > 0) gameState.makeMove(parseUci(moves[0]))
     })
 
-    window.electron.ipcRenderer.on("playTopHumanMove", () => {
+    window.electron.ipcRenderer.on("playTopHumanMove", async () => {
+      // See what Lichess has to say first...
+      await gameState.currentNode.fetchLichessStats()
       const move = gameState.currentNode.data.topHumanMoveUci
       if (move) gameState.makeMove(parseUci(move))
     })

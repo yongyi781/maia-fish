@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:setOption", (_, name: string, value: number | string) => engine.setOption(name, value))
   ipcMain.handle("engine:newGame", () => engine.newGame())
   ipcMain.handle("engine:position", (_, str: string) => engine.position(str))
-  ipcMain.handle("engine:go", async () => engine.go())
+  ipcMain.handle("engine:go", () => engine.go())
   ipcMain.handle("engine:stop", () => engine.stop())
 
   let chunks: UciMoveInfo[] = []
@@ -105,8 +105,8 @@ app.whenReady().then(async () => {
   engine.on("stateChange", (newState: EngineState) => {
     if (newState === "running") {
       engineOutputTimeout = setInterval(() => {
-        if (chunks.length > 0) {
-          if (!mainWindow.isDestroyed()) mainWindow.webContents.send("engine:moveinfos", chunks)
+        if (!mainWindow.isDestroyed() && chunks.length > 0) {
+          mainWindow.webContents.send("engine:moveinfos", chunks)
           chunks = []
         }
       }, config.analysisUpdateIntervalMs)
