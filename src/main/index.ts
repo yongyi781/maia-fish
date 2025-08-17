@@ -31,6 +31,7 @@ function createWindow(): void {
     width: 1024,
     height: 900,
     icon,
+    title: "Maia Fish",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false
