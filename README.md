@@ -26,7 +26,8 @@ This application allows you to analyze chess positions and games simultaneously 
 - Fix: Canceling in promotion dialog
 - Fix: implement draw by threefold repetition and 50-move rule
 - Add options for other maia skill levels, maybe (if there is demand)
-- "!" for good moves in brilliant positions that aren't best moves
+- "!" for good moves in brilliant positions that aren't best moves.
+  - Criterion: Good move (green), all good or best moves have < 10% probability.
 - Keep graph resolution at mainline resolution (or finer) when going into variations
 
 ## Usage

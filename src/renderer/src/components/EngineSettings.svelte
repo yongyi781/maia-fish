@@ -18,7 +18,7 @@
       await engine.start()
       needsRestart = false
     } else {
-      await engine.stop(false)
+      await engine.stop()
       engine.setStandardOptions()
       if (engine.analyzing) engine.go()
     }

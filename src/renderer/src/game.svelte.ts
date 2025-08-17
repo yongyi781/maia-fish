@@ -88,10 +88,9 @@ export class NodeData implements pgn.PgnNodeData {
   /** Mapping from LAN to index in `moveAnalyses`. */
   lanToIndex = new Map<string, number>()
   /** The parent node. */
-  parent?: Node
+  parent?: Node = $state.raw()
   startingComments?: string[]
   comments?: string[]
-  nags?: number[]
   opening?: Opening = $state()
 
   constructor(data?: Partial<NodeData>) {
@@ -173,6 +172,8 @@ export class NodeData implements pgn.PgnNodeData {
     if (c === "blunder") return 4
     return 0
   })
+
+  nags = $derived(this.engineNag === 0 ? [] : [this.engineNag])
 
   /** Gets move analysis by LAN. */
   moveAnalysis(lan: string) {
