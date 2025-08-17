@@ -55,6 +55,12 @@ function parseUciMoveInfo(line: string) {
       case "time":
         info.time = parseInt(tokens[i++], 10)
         break
+      case "currmove":
+        info.currmove = tokens[i++]
+        break
+      case "currmovenumber":
+        info.currmovenumber = parseInt(tokens[i++], 10)
+        break
       case "pv":
         // everything after "pv" are the moves
         info.pv = tokens.slice(i)
@@ -62,7 +68,7 @@ function parseUciMoveInfo(line: string) {
         break
       default:
         // unknown key: read next token as its value
-        console.log("Unknown key added", key, info[key])
+        console.log(`Unknown key (${key}) => ${info[key]} (line: ${line})`)
         info[key] = tokens[i++]
         break
     }
@@ -124,6 +130,7 @@ export class UciEngine extends EventEmitter {
     return this.uci()
   }
 
+  /** Kills the existing engine, if any. */
   kill(): void {
     this.rl?.close()
     this.process?.kill()
@@ -181,7 +188,6 @@ export class UciEngine extends EventEmitter {
   }
 
   async newGame() {
-    if (this.state === "unloaded") throw new Error("Called newGame while engine is unloaded.")
     // Not optional, engine breaks if we call "ucinewgame" while it is running.
     if (this.state === "running") await this.stop()
     this.send("ucinewgame")
@@ -197,9 +203,10 @@ export class UciEngine extends EventEmitter {
   go(depth = 0) {
     switch (this.state) {
       case "idle":
-        if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
-        this.send(`go ${depth ? `depth ${depth}` : "infinite"}`)
         this.state = "running"
+        this.sendPendingPosition()
+        this.send(`go ${depth ? `depth ${depth}` : "infinite"}`)
+        this.pendingDepth = 0
         break
       case "running":
         console.warn("Called go while engine is already running.")
@@ -221,8 +228,8 @@ export class UciEngine extends EventEmitter {
   stop() {
     switch (this.state) {
       case "running":
-        this.send("stop")
         this.state = "waitingBestMoveToIdle"
+        this.send("stop")
         break
       case "waitingBestMoveToRun":
         this.state = "waitingBestMoveToIdle"
@@ -253,11 +260,11 @@ export class UciEngine extends EventEmitter {
   /** Sends a command. Returns immediately. */
   private send(command: string) {
     if (!this.process) throw new Error("Engine process not running.")
-    if (!this.process.stdin) throw new Error("Engine process stdin not available.")
     console.log("SF command:", command)
     this.process.stdin.write(`${command}\n`)
   }
 
+  /** If waiting for best move, returns a promise that waits for "bestmove". Otherwise, returns a resolved promise. */
   private waitBestMovePromise() {
     return this.state === "waitingBestMoveToIdle" || this.state === "waitingBestMoveToRun"
       ? new Promise<UciBestMove | undefined>((resolve) => this.once("bestmove", resolve))
@@ -276,11 +283,10 @@ export class UciEngine extends EventEmitter {
         this.pendingPosition = undefined
         break
       case "waitingBestMoveToRun":
-        if (this.pendingPosition !== undefined) this.send(`position ${this.pendingPosition}`)
-        this.send(`go ${this.pendingDepth ? `depth ${this.pendingDepth}` : "infinite"}`)
         this.state = "running"
+        this.sendPendingPosition()
+        this.send(`go ${this.pendingDepth ? `depth ${this.pendingDepth}` : "infinite"}`)
         this.pendingDepth = 0
-        this.pendingPosition = undefined
         break
       default:
         break
@@ -296,6 +302,15 @@ export class UciEngine extends EventEmitter {
       this.emit("info", parseUciMoveInfo(line))
     } else if (line === "readyok") {
       this.emit("readyok")
+    }
+  }
+
+  /** Sends the pending position to the engine and also emits the position event. */
+  private sendPendingPosition() {
+    if (this.pendingPosition !== undefined) {
+      this.send(`position ${this.pendingPosition}`)
+      this.emit("position", this.pendingPosition)
+      this.pendingPosition = undefined
     }
   }
 

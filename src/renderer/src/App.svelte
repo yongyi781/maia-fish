@@ -9,6 +9,7 @@
   import EngineSettings from "./components/EngineSettings.svelte"
   import EvalBar from "./components/EvalBar.svelte"
   import EvalGraph from "./components/EvalGraph.svelte"
+  import HumanProbability from "./components/HumanProbability.svelte"
   import Infobox from "./components/Infobox.svelte"
   import MoveList from "./components/MoveList.svelte"
   import Score from "./components/Score.svelte"
@@ -20,6 +21,7 @@
     allLegalMoves,
     chessFromFen,
     existsBrilliantMove,
+    formatNumber,
     formatScore,
     isTextFocused,
     moveQualities,
@@ -30,7 +32,6 @@
     randomChoice,
     randomWeightedChoice
   } from "./utils"
-  import HumanProbability from "./components/HumanProbability.svelte"
 
   const engine = new Engine()
   let chessboard: Chessboard
@@ -162,7 +163,7 @@
   }
 
   /** Gets current move analysis value by key. */
-  function analysisValue(key: string, f: (x: number) => string) {
+  function analysisValue(key: string, f = formatNumber) {
     const data = gameState.currentNode.data.moveAnalyses
       .filter((a) => a[1][key] !== undefined)
       .map((a) => a[1][key]) as number[]
@@ -255,8 +256,7 @@
         shapes.push({
           orig: makeSquare(move.from) as Key,
           dest: makeSquare(move.to) as Key,
-          brush: "white",
-          modifiers: { hilite: true }
+          brush: "white"
         })
       }
 
@@ -316,113 +316,114 @@
   onMount(() => {
     gameState.currentNode = gameState.game.moves
 
-    window.electron.ipcRenderer.on("newGame", async () => {
-      loadFen(INITIAL_FEN)
-      gameState.userSetCurrentNode(gameState.game.moves)
-      evalBar.reset()
-    })
+    const offs = [
+      window.electron.ipcRenderer.on("newGame", async () => {
+        loadFen(INITIAL_FEN)
+        gameState.userSetCurrentNode(gameState.game.moves)
+        evalBar.reset()
+      }),
 
-    window.electron.ipcRenderer.on("paste", (_, text: string) => {
-      if (isTextFocused()) return
-      if (text) {
-        loadFenOrPgn(text)
-      }
-    })
-
-    window.electron.ipcRenderer.on("gotoRoot", () => {
-      gameState.userSetCurrentNode(gameState.game.moves)
-    })
-
-    window.electron.ipcRenderer.on("gotoEnd", () => {
-      gameState.userSetCurrentNode(gameState.currentNode.end())
-    })
-
-    window.electron.ipcRenderer.on("prevVariation", () => {
-      const node = gameState.currentNode
-      if (!node.data.parent) return
-      const siblings = node.data.parent.children
-      const i = siblings.indexOf(node)
-      gameState.userSetCurrentNode(siblings[(i + siblings.length - 1) % siblings.length])
-    })
-
-    window.electron.ipcRenderer.on("nextVariation", () => {
-      const node = gameState.currentNode
-      if (!node.data.parent) return
-      const siblings = node.data.parent.children
-      const i = siblings.indexOf(node)
-      gameState.userSetCurrentNode(siblings[(i + 1) % siblings.length])
-    })
-
-    window.electron.ipcRenderer.on("returnToMainline", () => {
-      let node = gameState.currentNode
-      let res = node
-      while (node.data.parent) {
-        if (node.data.parent.children[0] !== node) {
-          res = node.data.parent
+      window.electron.ipcRenderer.on("paste", (_, text: string) => {
+        if (isTextFocused()) return
+        if (text) {
+          loadFenOrPgn(text)
         }
-        node = node.data.parent
-      }
-      gameState.userSetCurrentNode(res)
-    })
+      }),
 
-    window.electron.ipcRenderer.on("promoteToMainline", () => {
-      let node = gameState.currentNode
-      while (node.data.parent) {
+      window.electron.ipcRenderer.on("gotoRoot", () => {
+        gameState.userSetCurrentNode(gameState.game.moves)
+      }),
+
+      window.electron.ipcRenderer.on("gotoEnd", () => {
+        gameState.userSetCurrentNode(gameState.currentNode.end())
+      }),
+
+      window.electron.ipcRenderer.on("prevVariation", () => {
+        const node = gameState.currentNode
+        if (!node.data.parent) return
         const siblings = node.data.parent.children
         const i = siblings.indexOf(node)
-        if (i > 0) {
-          siblings.splice(i, 1)
-          siblings.unshift(node)
+        gameState.userSetCurrentNode(siblings[(i + siblings.length - 1) % siblings.length])
+      }),
+
+      window.electron.ipcRenderer.on("nextVariation", () => {
+        const node = gameState.currentNode
+        if (!node.data.parent) return
+        const siblings = node.data.parent.children
+        const i = siblings.indexOf(node)
+        gameState.userSetCurrentNode(siblings[(i + 1) % siblings.length])
+      }),
+
+      window.electron.ipcRenderer.on("returnToMainline", () => {
+        let node = gameState.currentNode
+        let res = node
+        while (node.data.parent) {
+          if (node.data.parent.children[0] !== node) {
+            res = node.data.parent
+          }
+          node = node.data.parent
         }
-        node = node.data.parent
-      }
-    })
+        gameState.userSetCurrentNode(res)
+      }),
 
-    window.electron.ipcRenderer.on("deleteNode", deleteCurrentNode)
+      window.electron.ipcRenderer.on("promoteToMainline", () => {
+        let node = gameState.currentNode
+        while (node.data.parent) {
+          const siblings = node.data.parent.children
+          const i = siblings.indexOf(node)
+          if (i > 0) {
+            siblings.splice(i, 1)
+            siblings.unshift(node)
+          }
+          node = node.data.parent
+        }
+      }),
 
-    window.electron.ipcRenderer.on("deleteOtherLines", () => {
-      if (isTextFocused()) return
-      let node = gameState.currentNode.end()
-      let parent = node.data.parent
-      while (parent) {
-        parent.children = parent.children.filter((c) => c === node)
-        node = parent
-        parent = parent.data.parent
-      }
-    })
+      window.electron.ipcRenderer.on("deleteNode", deleteCurrentNode),
 
-    window.electron.ipcRenderer.on("flipBoard", () => {
-      if (isTextFocused()) return
-      chessboard?.toggleOrientation()
-      orientation = chessboard.getState().orientation
-    })
+      window.electron.ipcRenderer.on("deleteOtherLines", () => {
+        if (isTextFocused()) return
+        let node = gameState.currentNode.end()
+        let parent = node.data.parent
+        while (parent) {
+          parent.children = parent.children.filter((c) => c === node)
+          node = parent
+          parent = parent.data.parent
+        }
+      }),
 
-    window.electron.ipcRenderer.on("forgetAnalysis", async () => {
-      await engine.stop()
-      gameState.currentNode.data.resetAnalysis()
-    })
+      window.electron.ipcRenderer.on("flipBoard", () => {
+        if (isTextFocused()) return
+        chessboard?.toggleOrientation()
+        orientation = chessboard.getState().orientation
+      }),
 
-    window.electron.ipcRenderer.on("playTopEngineMove", () => {
-      const moves = gameState.currentNode.data.topEngineMovesUci
-      if (moves.length > 0) gameState.makeMove(parseUci(moves[0]))
-    })
+      window.electron.ipcRenderer.on("forgetAnalysis", async () => {
+        await engine.stop()
+        gameState.currentNode.data.resetAnalysis()
+      }),
 
-    window.electron.ipcRenderer.on("playTopHumanMove", async () => {
-      // See what Lichess has to say first...
-      await gameState.currentNode.fetchLichessStats()
-      const move = gameState.currentNode.data.topHumanMoveUci
-      if (move) gameState.makeMove(parseUci(move))
-    })
+      window.electron.ipcRenderer.on("playTopEngineMove", () => {
+        const moves = gameState.currentNode.data.topEngineMovesUci
+        if (moves.length > 0) gameState.makeMove(parseUci(moves[0]))
+      }),
 
-    window.electron.ipcRenderer.on("playWeightedHumanMove", playWeightedHumanMove)
+      window.electron.ipcRenderer.on("playTopHumanMove", async () => {
+        // See what Lichess has to say first...
+        await gameState.currentNode.fetchLichessStats()
+        const move = gameState.currentNode.data.topHumanMoveUci
+        if (move) gameState.makeMove(parseUci(move))
+      }),
 
-    window.electron.ipcRenderer.on("playRandomMove", () => {
-      gameState.makeMove(randomChoice(allLegalMoves(gameState.chess)))
-    })
+      window.electron.ipcRenderer.on("playWeightedHumanMove", playWeightedHumanMove),
+
+      window.electron.ipcRenderer.on("playRandomMove", () => {
+        gameState.makeMove(randomChoice(allLegalMoves(gameState.chess)))
+      })
+    ]
 
     return () => {
-      // The electron-toolkit API is missing the correct parameter type string | undefined.
-      window.electron.ipcRenderer.removeAllListeners(undefined!)
+      for (const off of offs) off()
     }
   })
 </script>
@@ -446,13 +447,15 @@
 <svelte:head><title>{title()}</title></svelte:head>
 
 <!-- Main layout -->
-<div class="flex h-screen flex-col p-1">
+<div class="flex h-screen flex-col p-1 select-none">
   <div class="flex gap-1">
     <!-- Left -->
     <div class="w-[576px]">
       <Chessboard
         class="cg-default-style"
         bind:this={chessboard}
+        tabindex={0}
+        onmousedown={(e) => e.currentTarget.focus()}
         onmove={(move) => gameState.makeMove(move)}
         onwheel={handleWheel}
       />
@@ -508,7 +511,7 @@
             {/if}
             <div>
               <div class="text-gray-500">Nodes:</div>
-              {analysisValue("nodes", (x) => `${(x / 1000000).toFixed(1)}M`)}
+              {analysisValue("nodes")}
             </div>
             <div>
               <div class="text-gray-500">Time:</div>
@@ -516,7 +519,7 @@
             </div>
             <div>
               <div class="text-gray-500">N/s:</div>
-              {analysisValue("nps", (x) => `${(x / 1000000).toFixed(1)}M`)}
+              {analysisValue("nps")}
             </div>
             <div>
               <div class="text-gray-500">Hash:</div>

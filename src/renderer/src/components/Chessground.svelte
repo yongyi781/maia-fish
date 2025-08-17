@@ -7,6 +7,13 @@
   import type { DrawBrush, DrawBrushes, DrawShape } from "chessground/draw"
   import type { State } from "chessground/state"
   import { onMount } from "svelte"
+  import type { HTMLAttributes } from "svelte/elements"
+
+  export interface Props extends HTMLAttributes<HTMLDivElement> {
+    class?: string
+    brushes?: { [color: string]: DrawBrush }
+    config?: Config
+  }
 
   let {
     /**
@@ -14,9 +21,9 @@
      * stylesheet than the default.
      */
     class: className = "cg-default-style",
-    brushes = undefined as { [color: string]: DrawBrush } | undefined,
+    brushes,
     ...restProps
-  } = $props()
+  }: Props = $props()
 
   let container: HTMLDivElement
   let chessground: Api

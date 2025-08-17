@@ -1,19 +1,19 @@
 <script lang="ts">
   import type { Config } from "chessground/config"
-  import type { DrawBrush, DrawShape } from "chessground/draw"
+  import type { DrawShape } from "chessground/draw"
   import type { Key, MoveMetadata } from "chessground/types"
   import { Chess, makeSquare, type NormalMove, parseSquare, type Role } from "chessops"
   import { makeFen } from "chessops/fen"
   import { mount, onMount, unmount } from "svelte"
   import { normalizeMove } from "../utils"
-  import Chessground from "./Chessground.svelte"
+  import Chessground, { type Props as ChessgroundProps } from "./Chessground.svelte"
   import PromotionDialog from "./PromotionDialog.svelte"
 
-  let {
-    onmove = undefined as ((move: NormalMove) => void) | undefined,
-    brushes = undefined as { [color: string]: DrawBrush } | undefined,
-    ...restProps
-  } = $props()
+  interface Props extends ChessgroundProps {
+    onmove?: ((move: NormalMove) => void) | undefined
+  }
+
+  let { onmove, ...restProps }: Props = $props()
 
   let container: HTMLDivElement
   let cg: Chessground
@@ -114,6 +114,6 @@
 </script>
 
 <div class="relative" bind:this={container}>
-  <Chessground bind:this={cg} {...restProps} {brushes} />
+  <Chessground bind:this={cg} {...restProps} />
   <!-- <PromotionDialog color={promotionColor} visible={promotionVisible} onselect={handlePromotionSelect} /> -->
 </div>

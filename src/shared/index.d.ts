@@ -46,6 +46,8 @@ export interface UciMoveInfo {
   tbhits?: number
   time?: number // milliseconds
   pv?: string[] // principal variation moves
+  currmove?: string
+  currmovenumber?: number
   [key: string]: unknown // for any other fields
 }
 

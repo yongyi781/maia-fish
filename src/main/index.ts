@@ -99,24 +99,30 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:go", () => engine.go())
   ipcMain.handle("engine:stop", () => engine.stop())
 
-  let chunks: UciMoveInfo[] = []
+  const chunks = new Map<string, UciMoveInfo>()
   const flush = () => {
-    if (chunks.length > 0) {
+    if (chunks.size > 0) {
       mainWindow.webContents.send("engine:moveinfos", chunks)
-      chunks = []
+      chunks.clear()
     }
   }
-  engine.on("info", (info: UciMoveInfo) => chunks.push(info))
+  engine.on("info", (info: UciMoveInfo) => {
+    if (info.pv) chunks.set(info.pv[0], info)
+  })
+  engine.on("position", (pos: string) => {
+    mainWindow.webContents.send("engine:position", pos)
+  })
   engine.on("bestmove", () => {
     clearInterval(engineOutputTimeout)
     flush()
+    mainWindow.webContents.send("engine:bestmove")
   })
   engine.on("stateChange", (newState: EngineState) => {
     if (newState === "running") {
       clearInterval(engineOutputTimeout)
       engineOutputTimeout = setInterval(flush, config.analysisUpdateIntervalMs)
     }
-    if (!mainWindow.isDestroyed()) mainWindow.webContents.send("stateChange", newState)
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send("engine:stateChange", newState)
   })
 
   ipcMain.handle("analyzeMaia", async (_, { boardInput, eloSelfCategory, eloOppoCategory }) => {

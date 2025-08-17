@@ -231,3 +231,17 @@ export function isTextFocused() {
 
   return el.isContentEditable
 }
+
+/** Formats numbers as in the following examples: 140, 2.1K, 2.1M, 2.1B. */
+export function formatNumber(n: number) {
+  const suffixes = ["", "K", "M", "B"]
+  let suffix = ""
+  let index = 0
+  while (Math.abs(n) >= 1000 && index < suffixes.length) {
+    n /= 1000
+    index += 1
+    suffix = suffixes[index]
+  }
+  const str = n.toFixed(1)
+  return str + suffix
+}
