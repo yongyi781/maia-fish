@@ -2,7 +2,7 @@
   import type { DrawShape } from "chessground/draw"
   import type { Key } from "chessground/types"
   import { makeSquare, type NormalMove } from "chessops"
-  import { INITIAL_FEN, parseFen } from "chessops/fen"
+  import { INITIAL_FEN, makeFen, parseFen } from "chessops/fen"
   import { defaultHeaders, makePgn, parsePgn } from "chessops/pgn"
   import { onMount, untrack } from "svelte"
   import Chessboard from "./components/Chessboard.svelte"
@@ -147,6 +147,8 @@
   }
 
   async function loadFen(fen: string) {
+    // Normalize the FEN
+    fen = makeFen(parseFen(fen).unwrap())
     gameState.maiaAutoMode = "off"
     await engine.newGame()
     const headers = defaultHeaders()
@@ -155,7 +157,7 @@
     }
     gameState.game = {
       headers,
-      moves: new Node({ fen: fen })
+      moves: new Node({ fen })
     }
     gameState.userSetCurrentNode(gameState.game.moves)
     evalBar.reset()
@@ -621,7 +623,7 @@
         <hr class="mx-1 text-zinc-700" />
         <!-- Infobox -->
         <div class="flex-1">
-          <Infobox data={gameState.currentNode.data} />
+          <Infobox node={gameState.currentNode} />
         </div>
       </div>
 
