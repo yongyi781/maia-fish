@@ -74,7 +74,7 @@ export function humanProbability(a: MoveAnalysis) {
  * instances.
  */
 export class NodeData implements pgn.PgnNodeData {
-  /** The move number in plies (half-moves). */
+  /** The move number in full moves. */
   moveNumber: number
   /** Short algebraic notation for the move. */
   san: string = ""
@@ -310,7 +310,7 @@ export class Node implements pgn.Node<NodeData> {
     if (
       !config.value?.lichessBookSpeeds ||
       !config.value?.lichessBookRatings ||
-      data.moveNumber > config.value.maiaBookPliesLimit ||
+      data.moveNumber > config.value.maiaBookMovesLimit ||
       data.moveAnalyses.length === 0 ||
       data.moveAnalyses.some((a) => a[1].lichessProbability !== undefined)
     )
