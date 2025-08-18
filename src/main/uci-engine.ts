@@ -27,9 +27,9 @@ function parseUciMoveInfo(line: string) {
       case "score":
         {
           const kind = tokens[i++]
-          const val = parseInt(tokens[i++], 10)
+          const value = parseInt(tokens[i++], 10)
           if (kind === "cp" || kind === "mate") {
-            info.score = { type: kind, value: val }
+            info.score = { type: kind, value }
           } else {
             throw new Error(`Unknown score kind: ${kind}`)
           }

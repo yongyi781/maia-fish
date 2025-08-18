@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte"
   import { gameState } from "../game.svelte"
-  import { chessFromFen, classifyMove, cpToWinProb, moveQualities, nagToColor, scoreWhitePov } from "../utils"
+  import { chessFromFen, cpToWinProb, moveQualities, moveQuality, nagToColor, scoreWhitePov } from "../utils"
 
   const { class: className = "", ...restProps } = $props()
 
@@ -103,16 +103,14 @@
       // Human difficulty rating marker
       const lHumanEval = l.data.humanEval
       if (lEval && lHumanEval && lHumanEval.value !== undefined) {
-        const c = classifyMove(lHumanEval, lEval)
-        if (c) {
-          const q = c === "best" ? moveQualities.good : moveQualities[c]
-          markers.push({
-            outerColor: q.color,
-            radius: 5,
-            x,
-            y: canvas.height - statusBarHeight / 2
-          })
-        }
+        let q = moveQuality(lHumanEval, lEval)
+        if (q.name === "best") q = moveQualities.good
+        markers.push({
+          outerColor: q.color,
+          radius: 5,
+          x,
+          y: canvas.height - statusBarHeight / 2
+        })
       }
     }
     ctx.stroke()

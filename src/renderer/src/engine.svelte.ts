@@ -1,9 +1,9 @@
 import { Chess, fen } from "chessops"
+import { onMount } from "svelte"
 import type { EngineState, UciMoveInfo, UciOption } from "../../shared"
 import { config } from "./config.svelte"
 import { gameState, NodeData } from "./game.svelte"
 import { chessFromFen, pvUciToSan } from "./utils"
-import { onMount } from "svelte"
 
 /** Engine client. */
 export class Engine {
@@ -102,7 +102,7 @@ export class Engine {
   private syncWithEnginePosition(str: string) {
     const parts = str.split(" ")
     let initialFen = fen.INITIAL_FEN
-    let moves: string[] = []
+    let moves: string[] | undefined
     for (const part of parts) {
       if (part === "startpos") {
         initialFen = fen.INITIAL_FEN
@@ -117,7 +117,7 @@ export class Engine {
       console.warn("Fen mismatch")
       this.currentNodeData = undefined
       this.pos = undefined
-    } else {
+    } else if (moves) {
       for (const move of moves) {
         const res = node.children.find((c) => c.data.lan === move)
         if (!res) {
@@ -128,9 +128,9 @@ export class Engine {
         }
         node = res
       }
-      this.currentNodeData = node.data
-      this.pos = chessFromFen(node.data.fen)
     }
+    this.currentNodeData = node.data
+    this.pos = chessFromFen(node.data.fen)
   }
 
   private processOutput(infos: Map<string, UciMoveInfo>): void {

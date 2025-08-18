@@ -1,9 +1,9 @@
-import { Chess, type NormalMove, parseUci as cParseUci, type Role, squareRank } from "chessops"
+import { Chess, parseUci as cParseUci, type NormalMove, type Role, squareRank } from "chessops"
 import { castlingSide } from "chessops/chess"
 import { parseFen } from "chessops/fen"
 import { makeSanAndPlay } from "chessops/san"
-import { humanProbability, NodeData, rawEval } from "./game.svelte"
 import type { Score } from "../../shared"
+import { rawEval } from "./game.svelte"
 
 export function delay(delayInms: number) {
   return new Promise((resolve) => setTimeout(resolve, delayInms))
@@ -121,43 +121,52 @@ export function cpToWinProb(cp: number) {
 }
 
 interface MoveQuality {
+  name: string
   color: string
   threshold: number
   annotation: string
 }
 
-export const moveQualities: { [key: string]: MoveQuality } = {
+export const moveQualities = {
   best: {
+    name: "best",
     color: "hsl(190 65% 65%)",
     threshold: 0,
     annotation: "妙"
-  },
+  } as MoveQuality,
   good: {
+    name: "good",
     color: "hsl(120 50% 60%)",
     threshold: 0.05,
     annotation: "✓"
-  },
+  } as MoveQuality,
   inaccuracy: {
+    name: "inaccuracy",
     color: "hsl(60 50% 60%)",
     threshold: 0.1,
     annotation: "?!"
-  },
+  } as MoveQuality,
   mistake: {
+    name: "mistake",
     color: "hsl(30 50% 60%)",
     threshold: 0.2,
     annotation: "?"
-  },
+  } as MoveQuality,
   blunder: {
+    name: "blunder",
     color: "hsl(0 50% 60%)",
     threshold: 1,
     annotation: "??"
-  },
+  } as MoveQuality,
   unknown: {
+    name: "unknown",
     color: "hsl(100 50% 30%)",
     threshold: 9001,
     annotation: ""
-  }
+  } as MoveQuality
 }
+
+const moveQualitiesArray = Object.values(moveQualities)
 
 export const nagToSymbol = ["", "!", "?", "!!", "??", "!?", "?!", "□"]
 export const nagToColor = [
@@ -171,47 +180,22 @@ export const nagToColor = [
   ""
 ]
 
-/** Determines the classification of a move (best, good, inaccuracy, mistake, blunder). */
-export function classifyMove(score: Score, best: Score) {
-  if (!isFinite(best?.value) || !isFinite(score?.value)) return undefined
+/** Returns the quality of a move compared to the best move. */
+export function moveQuality(score: Score, best: Score) {
+  if (!isFinite(best?.value) || !isFinite(score?.value)) return moveQualities.unknown
   if (best.type === "mate" && score.type === "mate" && Math.sign(score.value) === Math.sign(best.value)) {
-    return score.value === best.value ? "best" : "good"
+    return score.value === best.value ? moveQualities.best : moveQualities.good
   }
   if (best.type !== "mate" && score.type === "mate") {
-    return "blunder"
+    return moveQualities.blunder
   }
   const loss = cpToWinProb(rawEval(best)) - cpToWinProb(rawEval(score))
-  for (const [k, v] of Object.entries(moveQualities)) {
+  for (const v of moveQualitiesArray) {
     if (loss <= v.threshold) {
-      return k
+      return v
     }
   }
-  return "unknown"
-}
-
-/** Returns the color of a move based on its classification. */
-export function moveQuality(score: Score, best: Score) {
-  return moveQualities[classifyMove(score, best) ?? "unknown"]
-}
-
-/**
- * Checks there exists a brilliant move. The requirements are:
- * - The position is not super-losing (i.e. cp >= -500)
- * - Every human move with ≥ 3% probability is an inaccuracy or worse.
- */
-export function existsBrilliantMove(data: NodeData, humanProbThreshold = 0.03) {
-  const best = data.eval
-  // If the position is super-losing (cp < -500) then there can't be a brilliant move.
-  if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
-  const hasObviousGoodMove = data.moveAnalyses.some(([, a]) => {
-    const p = humanProbability(a)
-    return (
-      p !== undefined &&
-      p >= humanProbThreshold &&
-      (a.score === undefined || moveQuality(a.score, best).threshold < 0.1)
-    )
-  })
-  return !hasObviousGoodMove
+  return moveQualities.unknown
 }
 
 /** Checks if the text input is currently focused. */

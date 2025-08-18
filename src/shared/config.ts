@@ -12,6 +12,8 @@ export const defaultConfig = {
   autoAnalyzeDepthLimit: 12,
   analysisUpdateIntervalMs: 40,
   maiaBookPliesLimit: 20,
+  /** The threshold of human probability for a move to be considered "brilliant". */
+  brilliantMoveThreshold: 0.03,
   engine: {
     path: "",
     threads: 2,

@@ -4,7 +4,7 @@ import { defaultHeaders } from "chessops/pgn"
 import { makeSan, makeSanAndPlay, parseSan } from "chessops/san"
 import type { Score } from "../../shared"
 import { config } from "./config.svelte"
-import { allLegalMoves, chessFromFen, classifyMove, existsBrilliantMove, normalizeMove, parseUci } from "./utils"
+import { allLegalMoves, chessFromFen, moveQuality, normalizeMove, parseUci } from "./utils"
 
 function makeLichessUrl(fen: string) {
   const url = new URL("https://explorer.lichess.ovh/lichess")
@@ -58,6 +58,7 @@ export interface MoveAnalysis {
   [key: string]: unknown
 }
 
+/** Lichess opening data. */
 export interface Opening {
   eco: string
   name: string
@@ -103,16 +104,18 @@ export class NodeData implements pgn.PgnNodeData {
     this.resetAnalysis()
   }
 
+  /** Chess position. */
   pos: Chess = $derived(chessFromFen(this.fen))
 
-  /** Current position's evaluation. */
-  eval = $derived(
-    this.moveAnalyses.length === 0
-      ? undefined
-      : this.moveAnalyses.reduce((max, ma) =>
-          ma !== undefined && rawEval(ma[1].score) > rawEval(max[1].score) ? ma : max
-        )[1]?.score
+  /** Move analyses, sorted by engine evaluation. */
+  sortedAnalyses = $derived(
+    this.moveAnalyses.toSorted(([, a1], [, a2]) => {
+      return rawEval(a2.score) - rawEval(a1.score)
+    })
   )
+
+  /** Current position's evaluation. */
+  eval = $derived(this.sortedAnalyses[0]?.[1].score)
 
   /** Current position's human evaluation, in centipawns. */
   humanEval = $derived(
@@ -164,16 +167,35 @@ export class NodeData implements pgn.PgnNodeData {
     if (!p || !p.data.eval) return 0
     const score = this.parentAnalysisEntry()?.score
     if (!score) return 0
-    const c = classifyMove(score, p.data.eval)
-    if (!c) return 0
-    if (c === "best" && existsBrilliantMove(p.data)) return 3
-    if (c === "inaccuracy") return 6
-    if (c === "mistake") return 2
-    if (c === "blunder") return 4
+    const q = moveQuality(score, p.data.eval)
+    if (q.name === "unknown") return 0
+    if (q.name === "best" && p.data.existsBrilliantMove) return 3
+    if (q.name === "inaccuracy") return 6
+    if (q.name === "mistake") return 2
+    if (q.name === "blunder") return 4
     return 0
   })
 
+  /** By default, a singleton array consisting of the engine NAG. */
   nags = $derived(this.engineNag === 0 ? [] : [this.engineNag])
+
+  /**
+   * Returns whether there exists a brilliant move. The requirements are:
+   * - The position is not super-losing (i.e. cp >= -500)
+   * - Every human move with ≥ 3% probability is an inaccuracy or worse.
+   */
+  existsBrilliantMove = $derived.by(() => {
+    const best = this.eval
+    const thres = config.value.brilliantMoveThreshold
+    // Make sure the position is not super-losing (cp < -500).
+    if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
+    for (const [, a] of this.sortedAnalyses) {
+      if (!a.score) continue
+      if (moveQuality(a.score, best).threshold >= 0.1) break
+      if (humanProbability(a) >= thres) return false
+    }
+    return true
+  })
 
   /** Gets move analysis by LAN. */
   moveAnalysis(lan: string) {
@@ -187,6 +209,7 @@ export class NodeData implements pgn.PgnNodeData {
     return this.parent?.data.moveAnalysis(this.lan)
   }
 
+  /** Resets the move analyses. */
   resetAnalysis() {
     if (this.moveAnalyses.length === 0) {
       this.moveAnalyses = allLegalMoves(this.pos).map((move): [string, MoveAnalysis] => {
@@ -254,8 +277,8 @@ export class Node implements pgn.Node<NodeData> {
     return path.map((n) => n.data.lan)
   }
 
-  /** Adds a list of moves. */
-  addMoves(moves: string[]) {
+  /** Adds a line of moves. */
+  addLine(moves: string[]) {
     const pos = chessFromFen(this.data.fen)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     let node: Node = this

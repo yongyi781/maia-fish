@@ -25,14 +25,10 @@
 
   function sortedAnalyses(data: NodeData) {
     // Union the top 3 engine moves and all human moves >= 3% probability if maia and all human moves if lichess
-    const entries = data.moveAnalyses
-    const topEngineMoves = entries
-      .filter(([, a]) => a.score !== undefined)
-      .sort(([, a], [, b]) => f(b, a))
-      .slice(0, 3)
+    const entries = data.sortedAnalyses
+    const topEngineMoves = entries.slice(0, 3)
     const topHumanMoves = entries.filter(([, a]) => humanProbability(a) > humanThreshold(a))
-    const topMoves = [...new Set([...topEngineMoves, ...topHumanMoves])]
-    return topMoves.sort(([, a], [, b]) => cmp(b, a))
+    return [...new Set([...topEngineMoves, ...topHumanMoves])].sort(([, a], [, b]) => cmp(b, a))
   }
 
   function hideLines() {
@@ -43,7 +39,7 @@
     if (e.button === 0) {
       gameState.makeMove(parseUci(entry[0]))
     } else if (e.button === 1 || e.button === 2) {
-      const res = gameState.currentNode.addMoves(entry[1].pv)
+      const res = gameState.currentNode.addLine(entry[1].pv)
       if (e.button === 2) gameState.userSetCurrentNode(res)
     }
   }

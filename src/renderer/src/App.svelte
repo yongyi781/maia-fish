@@ -20,7 +20,6 @@
   import {
     allLegalMoves,
     chessFromFen,
-    existsBrilliantMove,
     formatNumber,
     formatScore,
     isTextFocused,
@@ -269,7 +268,7 @@
           dest: makeSquare(topMove.to),
           brush: "paleBlue"
         }
-        if (existsBrilliantMove(currentData)) {
+        if (currentData.existsBrilliantMove) {
           shape.label = { text: "!!", fill: moveQualities.best.color }
         }
         shapes.push(shape)
