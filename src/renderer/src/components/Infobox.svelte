@@ -1,11 +1,15 @@
 <script lang="ts">
   import { config } from "../config.svelte"
-  import { gameState, humanProbability, type MoveAnalysis, NodeData, rawEval } from "../game.svelte"
+  import { gameState, humanProbability, type MoveAnalysis, Node, rawEval } from "../game.svelte"
   import { parseUci } from "../utils"
   import HumanProbability from "./HumanProbability.svelte"
   import Score from "./Score.svelte"
 
-  const { data }: { data: NodeData } = $props()
+  interface Props {
+    node: Node
+  }
+
+  const { node }: Props = $props()
 
   function f(a: MoveAnalysis, b: MoveAnalysis) {
     return rawEval(a.score) - rawEval(b.score)
@@ -23,16 +27,16 @@
     return a.lichessProbability !== undefined ? 0 : 0.02
   }
 
-  function sortedAnalyses(data: NodeData) {
-    // Union the top 3 engine moves and all human moves >= 3% probability if maia and all human moves if lichess
-    const entries = data.sortedAnalyses
+  function sortedAnalyses() {
+    const entries = node.data.sortedAnalyses
     const topEngineMoves = entries.slice(0, 3)
-    const topHumanMoves = entries.filter(([, a]) => humanProbability(a) > humanThreshold(a))
-    return [...new Set([...topEngineMoves, ...topHumanMoves])].sort(([, a], [, b]) => cmp(b, a))
+    const topHumanMoves = entries.filter(([lan, a]) => humanProbability(a) > humanThreshold(a) || isNextMove(lan))
+    const set = new Set([...topEngineMoves, ...topHumanMoves])
+    return [...set].sort(([, a], [, b]) => cmp(b, a))
   }
 
   function hideLines() {
-    return data.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack
+    return node.data.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack
   }
 
   function handleClick(e: MouseEvent, entry: [string, MoveAnalysis]) {
@@ -43,20 +47,30 @@
       if (e.button === 2) gameState.userSetCurrentNode(res)
     }
   }
+
+  function isNextMove(lan: string) {
+    return node.children.length === 0 ? false : node.children[0].data.lan === lan
+  }
 </script>
 
 <div class="relative h-full">
-  <div class="absolute max-h-full w-full overflow-auto pt-2">
-    {#each sortedAnalyses(data) as entry (entry[0])}
-      <button class="flex w-full items-center gap-2 hover:bg-zinc-700" onmousedown={(e) => handleClick(e, entry)}>
-        <Score class="min-w-12 text-right" score={entry[1].score} best={data.eval} turn={data.turn} />
+  <div class="absolute max-h-full w-full overflow-auto p-1">
+    {#each sortedAnalyses() as entry (entry[0])}
+      <button
+        class="flex w-full items-center gap-2 hover:bg-zinc-700 {isNextMove(entry[0])
+          ? 'outline outline-zinc-600'
+          : ''}"
+        onmousedown={(e) => handleClick(e, entry)}
+      >
+        <Score class="min-w-12 text-right" score={entry[1].score} best={node.data.eval} turn={node.data.turn} />
         <HumanProbability class="min-w-12 text-right" analysis={entry[1]} />
         <div class="min-w-6 text-center text-xs text-gray-400">{entry[1].depth}</div>
         <div class="relative flex flex-1 items-center">
           <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis" title={entry[1].pv.join(" ")}>
             {#if !hideLines()}
               {#each entry[1].pv as move, i (i)}
-                <span style="color: {(i + (data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span>&nbsp;
+                <span style="color: {(i + (node.data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span
+                >&nbsp;
               {/each}
             {/if}
           </div>
