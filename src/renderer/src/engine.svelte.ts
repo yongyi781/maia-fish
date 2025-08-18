@@ -49,7 +49,6 @@ export class Engine {
       this.name = res.name ?? "Unknown"
       this.author = res.author ?? "Unknown"
       this.validOptions = res.options
-      console.log("Valid options:", this.validOptions)
       this.setStandardOptions()
       this.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
     } else {
@@ -98,23 +97,20 @@ export class Engine {
     else this.go()
   }
 
+  /** Parses a string like "startpos moves [moves]" or "fen [fen] moves [moves]". */
+  private parseEnginePosition(str: string) {
+    const parts = str.split(" moves ")
+    const initialFen = parts[0] === "startpos" ? fen.INITIAL_FEN : parts[0].substring(4)
+    const moves = parts.length <= 1 ? [] : parts[1].split(" ")
+    return { initialFen, moves }
+  }
+
   /** Synchronizes with the engine position. */
   private syncWithEnginePosition(str: string) {
-    const parts = str.split(" ")
-    let initialFen = fen.INITIAL_FEN
-    let moves: string[] | undefined
-    for (const part of parts) {
-      if (part === "startpos") {
-        initialFen = fen.INITIAL_FEN
-      } else if (part === "fen") {
-        initialFen = parts[1]
-      } else if (part === "moves") {
-        moves = parts.slice(2)
-      }
-    }
+    const { initialFen, moves } = this.parseEnginePosition(str)
     let node = gameState.root
     if (node.data.fen !== initialFen) {
-      console.warn("Fen mismatch")
+      console.warn("Fen mismatch", str, node.data.fen)
       this.currentNodeData = undefined
       this.pos = undefined
     } else if (moves) {

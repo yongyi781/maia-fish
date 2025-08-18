@@ -68,7 +68,7 @@ function parseUciMoveInfo(line: string) {
         break
       default:
         // unknown key: read next token as its value
-        console.log(`Unknown key (${key}) => ${info[key]} (line: ${line})`)
+        console.warn(`Unknown key (${key}) => ${info[key]} (line: ${line})`)
         info[key] = tokens[i++]
         break
     }
