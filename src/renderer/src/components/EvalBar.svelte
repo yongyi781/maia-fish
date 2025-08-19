@@ -2,7 +2,7 @@
   import type { Score } from "../../../shared"
   import { scoreWhitePov } from "../utils"
 
-  const { maxScore = 7, orientation = "white" as "white" | "black", class: className = "", ...restProps } = $props()
+  const { maxScore = 8, orientation = "white" as "white" | "black", class: className = "", ...restProps } = $props()
 
   let turn: "w" | "b" = $state("w")
   let score: Score | undefined = $state({
