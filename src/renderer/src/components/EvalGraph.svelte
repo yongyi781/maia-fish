@@ -19,8 +19,9 @@
     return canvas.height - statusBarHeight
   }
 
-  function getDenom() {
-    return Math.max(40, gameState.currentLine.length) - 1
+  /** Spacing between dots. */
+  function getSpacing() {
+    return (canvas.width - 5) / Math.max(40, gameState.currentLine.length - 1, gameState.mainline.length)
   }
 
   function draw() {
@@ -52,7 +53,7 @@
     const currentLine = gameState.currentLine
     let indexCurrentMove: number | undefined
     const markers = []
-    const denom = getDenom()
+    const spacing = getSpacing()
     ctx.beginPath()
     for (let i = 0, j = currentLine.length - 1; j >= 0; ++i, --j) {
       const l = currentLine[j]
@@ -69,7 +70,7 @@
         if (e) winProb = e.type === "mate" ? (e.value >= 0 ? 1 : 0) : cpToWinProb(e.value)
       }
 
-      const x = (i / denom) * (canvas.width - 5)
+      const x = i * spacing
       const y = 5 + (1 - winProb) * (mainHeight() - 10)
       ctx.lineTo(x + 0.5, y + 0.5)
 
@@ -131,7 +132,7 @@
       ctx.lineWidth = 1
       ctx.strokeStyle = gameState.isMainline ? mainlineSolid : variationSolid
       ctx.beginPath()
-      const x = Math.round((indexCurrentMove / denom) * (canvas.width - 5)) + 0.5
+      const x = Math.round(indexCurrentMove * spacing) + 0.5
       ctx.moveTo(x, 0)
       ctx.lineTo(x, canvas.height)
       ctx.stroke()
@@ -141,10 +142,7 @@
   function handleClick(e: MouseEvent) {
     const x = e.offsetX
     const currentLine = gameState.currentLine
-    const index = Math.max(
-      0,
-      Math.min(currentLine.length - 1, currentLine.length - 1 - Math.round((x / (canvas.width - 5)) * getDenom()))
-    )
+    const index = Math.max(0, Math.min(currentLine.length - 1, currentLine.length - 1 - Math.round(x / getSpacing())))
     gameState.userSetCurrentNode(gameState.currentLine[index])
   }
 

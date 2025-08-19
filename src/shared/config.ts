@@ -14,6 +14,8 @@ export const defaultConfig = {
   maiaBookMovesLimit: 20,
   /** The threshold of human probability for a move to be considered "brilliant". */
   brilliantMoveThreshold: 0.03,
+  /** The threshold of human probability for a move to be considered "great". */
+  greatMoveThreshold: 0.1,
   engine: {
     path: "",
     threads: 2,

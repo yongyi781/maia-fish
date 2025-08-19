@@ -270,8 +270,10 @@
           dest: makeSquare(topMove.to),
           brush: "paleBlue"
         }
-        if (currentData.existsBrilliantMove) {
+        if (currentData.existsBrilliantMove()) {
           shape.label = { text: "!!", fill: moveQualities.best.color }
+        } else if (currentData.existsGreatMove()) {
+          shape.label = { text: "!", fill: moveQualities.good.color }
         }
         shapes.push(shape)
       }

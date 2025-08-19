@@ -171,7 +171,7 @@ const moveQualitiesArray = Object.values(moveQualities)
 export const nagToSymbol = ["", "!", "?", "!!", "??", "!?", "?!", "□"]
 export const nagToColor = [
   "",
-  "blue",
+  moveQualities.good.color,
   moveQualities.mistake.color,
   moveQualities.best.color,
   moveQualities.blunder.color,

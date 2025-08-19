@@ -168,8 +168,8 @@ export class NodeData implements pgn.PgnNodeData {
     const score = this.parentAnalysisEntry()?.score
     if (!score) return 0
     const q = moveQuality(score, p.data.eval)
-    if (q.name === "unknown") return 0
-    if (q.name === "best" && p.data.existsBrilliantMove) return 3
+    if (q.name === "best" && p.data.existsBrilliantMove()) return 3
+    if ((q.name === "best" || q.name === "good") && p.data.existsGreatMove()) return 1
     if (q.name === "inaccuracy") return 6
     if (q.name === "mistake") return 2
     if (q.name === "blunder") return 4
@@ -179,23 +179,34 @@ export class NodeData implements pgn.PgnNodeData {
   /** By default, a singleton array consisting of the engine NAG. */
   nags = $derived(this.engineNag === 0 ? [] : [this.engineNag])
 
+  /** The brilliancy of the position. It is the highest human probability of a move that is best or good. */
+  positionBrilliancy = $derived.by(() => {
+    const best = this.eval
+    // Make sure the position is not super-losing (cp < -500).
+    if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return 1
+    // Loop through best or good moves
+    let res = 0
+    for (const [, a] of this.sortedAnalyses) {
+      if (!a.score) continue
+      if (moveQuality(a.score, best).threshold >= 0.1) break // Inaccuracy or worse
+      res = Math.max(res, humanProbability(a))
+    }
+    return res
+  })
+
   /**
    * Returns whether there exists a brilliant move. The requirements are:
    * - The position is not super-losing (i.e. cp >= -500)
    * - Every human move with ≥ 3% probability is an inaccuracy or worse.
    */
-  existsBrilliantMove = $derived.by(() => {
-    const best = this.eval
-    const thres = config.value.brilliantMoveThreshold
-    // Make sure the position is not super-losing (cp < -500).
-    if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return false
-    for (const [, a] of this.sortedAnalyses) {
-      if (!a.score) continue
-      if (moveQuality(a.score, best).threshold >= 0.1) break
-      if (humanProbability(a) >= thres) return false
-    }
-    return true
-  })
+  existsBrilliantMove() {
+    return this.positionBrilliancy <= config.value.brilliantMoveThreshold
+  }
+
+  /** Great move is similar except 10% probability instead of 3%. */
+  existsGreatMove() {
+    return this.positionBrilliancy <= config.value.greatMoveThreshold
+  }
 
   /** Gets move analysis by LAN. */
   moveAnalysis(lan: string) {
