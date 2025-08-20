@@ -132,7 +132,13 @@ export class Engine {
   private processOutput(infos: Map<string, UciMoveInfo>): void {
     if (!this.currentNodeData || !this.pos) return
     for (const [lan, info] of infos) {
-      if (info.depth !== undefined && info.pv !== undefined && info.pv.length > 0) {
+      if (
+        info.depth !== undefined &&
+        info.pv !== undefined &&
+        info.pv.length > 0 &&
+        info.upperbound === undefined &&
+        info.lowerbound === undefined
+      ) {
         const index = this.currentNodeData.lanToIndex.get(lan)
         if (index === undefined) {
           console.debug(`Stale move ignored: ${lan}`)

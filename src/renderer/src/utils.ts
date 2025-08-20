@@ -182,7 +182,7 @@ export const nagToColor = [
 
 /** Returns the quality of a move compared to the best move. */
 export function moveQuality(score: Score, best: Score) {
-  if (!isFinite(best?.value) || !isFinite(score?.value)) return moveQualities.unknown
+  if (!isFinite(best.value) || !isFinite(score.value)) return moveQualities.unknown
   if (best.type === "mate" && score.type === "mate" && Math.sign(score.value) === Math.sign(best.value)) {
     return score.value === best.value ? moveQualities.best : moveQualities.good
   }

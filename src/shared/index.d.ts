@@ -40,6 +40,8 @@ export interface UciMoveInfo {
   seldepth?: number
   multipv?: number
   score?: Score
+  upperbound?: number
+  lowerbound?: number
   nodes?: number
   nps?: number
   hashfull?: number

@@ -190,6 +190,7 @@ export class NodeData implements pgn.PgnNodeData {
       if (!a.score) continue
       if (moveQuality(a.score, best).threshold >= 0.1) break // Inaccuracy or worse
       res = Math.max(res, humanProbability(a))
+      if (res > config.value.greatMoveThreshold) break
     }
     return res
   })
