@@ -250,17 +250,6 @@
     }
 
     if (!(currentData.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack)) {
-      // Actual move
-      if (currentNode.children.length > 0) {
-        const child = currentNode.children[0]
-        const move = parseUci(child.data.lan)
-        shapes.push({
-          orig: makeSquare(move.from) as Key,
-          dest: makeSquare(move.to) as Key,
-          brush: "white"
-        })
-      }
-
       // Top engine move
       const topEngineUcis = currentData.topEngineMovesUci
       for (let uci of topEngineUcis) {
