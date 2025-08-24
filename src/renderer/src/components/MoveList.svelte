@@ -14,12 +14,11 @@
 </script>
 
 <div class="h-full">
-  <div class="min-h-6 w-full text-center leading-6">
+  <div class="min-h-6 w-full border-b border-b-zinc-700 text-center leading-6">
     {#if opening}
       {opening.eco}: {opening.name}
     {/if}
   </div>
-  <hr class="my-1 text-zinc-700" />
   <div class="select-none">
     <MoveListNode node={gameState.game.moves} />
   </div>

@@ -39,11 +39,11 @@
     return node.data.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack
   }
 
-  function handleClick(e: MouseEvent, entry: [string, MoveAnalysis]) {
+  function handleClick(e: MouseEvent, lan: string, a: MoveAnalysis) {
     if (e.button === 0) {
-      gameState.makeMove(parseUci(entry[0]))
+      gameState.makeMove(parseUci(lan))
     } else if (e.button === 1 || e.button === 2) {
-      const res = gameState.currentNode.addLine(entry[1].pv)
+      const res = gameState.currentNode.addLine(a.pv)
       if (e.button === 2) gameState.userSetCurrentNode(res)
     }
   }
@@ -55,20 +55,18 @@
 
 <div class="relative h-full">
   <div class="absolute max-h-full w-full overflow-auto p-1">
-    {#each sortedAnalyses() as entry (entry[0])}
+    {#each sortedAnalyses() as [lan, a] (lan)}
       <button
-        class="flex w-full items-center gap-2 hover:bg-zinc-700 {isNextMove(entry[0])
-          ? 'outline outline-zinc-600'
-          : ''}"
-        onmousedown={(e) => handleClick(e, entry)}
+        class="flex w-full items-center gap-2 hover:bg-zinc-700 {isNextMove(lan) ? 'outline outline-zinc-500' : ''}"
+        onmousedown={(e) => handleClick(e, lan, a)}
       >
-        <Score class="min-w-12 text-right" score={entry[1].score} best={node.data.eval} turn={node.data.turn} />
-        <HumanProbability class="min-w-12 text-right" analysis={entry[1]} />
-        <div class="min-w-6 text-center text-xs text-gray-400">{entry[1].depth}</div>
+        <Score class="min-w-12 text-right" score={a.score} best={node.data.eval} turn={node.data.turn} />
+        <HumanProbability class="min-w-12 text-right" analysis={a} />
+        <div class="min-w-6 text-center text-xs text-gray-400">{a.depth}</div>
         <div class="relative flex flex-1 items-center">
-          <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis" title={entry[1].pv.join(" ")}>
+          <div class="absolute max-w-full overflow-hidden text-nowrap text-ellipsis" title={a.pv.join(" ")}>
             {#if !hideLines()}
-              {#each entry[1].pv as move, i (i)}
+              {#each a.pv as move, i (i)}
                 <span style="color: {(i + (node.data.turn === 'w' ? 0 : 1)) % 2 == 0 ? 'white' : 'pink'}">{move}</span
                 >&nbsp;
               {/each}

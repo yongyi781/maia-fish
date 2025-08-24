@@ -5,14 +5,15 @@
   import { INITIAL_FEN, makeFen, parseFen } from "chessops/fen"
   import { defaultHeaders, makePgn, parsePgn } from "chessops/pgn"
   import { onMount, untrack } from "svelte"
+  import Button from "./components/Button.svelte"
   import Chessboard from "./components/Chessboard.svelte"
-  import EngineSettings from "./components/EngineSettings.svelte"
   import EvalBar from "./components/EvalBar.svelte"
   import EvalGraph from "./components/EvalGraph.svelte"
   import HumanProbability from "./components/HumanProbability.svelte"
   import Infobox from "./components/Infobox.svelte"
   import MoveList from "./components/MoveList.svelte"
   import Score from "./components/Score.svelte"
+  import EngineSettings from "./components/Settings.svelte"
   import { config } from "./config.svelte"
   import { Engine } from "./engine.svelte"
   import { fromPgnNode, gameState, humanProbability, Node } from "./game.svelte"
@@ -29,7 +30,7 @@
     nagToSymbol,
     parseUci,
     randomChoice,
-    randomWeightedChoice
+    temperatureWeightedChoice
   } from "./utils"
 
   const engine = new Engine()
@@ -222,7 +223,7 @@
       .map((a) => [a[0], humanProbability(a[1])] as [string, number])
       .filter((x) => x[1] > 0)
     if (moves.length === 0) return
-    const move = randomWeightedChoice(moves)
+    const move = temperatureWeightedChoice(moves, config.value.temperature)
     gameState.makeMove(parseUci(move))
   }
 
@@ -539,10 +540,9 @@
           />
         </div>
         <div class="flex items-center justify-center gap-0">
-          <button
-            class="rounded-l-md px-2 py-1 {engine.autoMode === 'backward'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+          <Button
+            class="rounded-r-none"
+            checked={engine.autoMode === "backward"}
             title="Shortcut: Shift+F12"
             onclick={() => {
               gameState.maiaAutoMode = "off"
@@ -550,11 +550,10 @@
             }}
           >
             ◀◀
-          </button>
-          <button
-            class="rounded-r-md px-2 py-1 {engine.autoMode === 'forward'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+          </Button>
+          <Button
+            class="rounded-l-none"
+            checked={engine.autoMode === "forward"}
             title="Shortcut: F12"
             onclick={() => {
               gameState.maiaAutoMode = "off"
@@ -562,13 +561,12 @@
             }}
           >
             ▶▶
-          </button>
+          </Button>
         </div>
         <div class="flex items-center justify-center gap-0">
-          <button
-            class="rounded-l-md px-2 py-1 {gameState.maiaAutoMode === 'white'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+          <Button
+            class="rounded-r-none"
+            checked={gameState.maiaAutoMode === "white"}
             title="Shortcut: F9 (when white)"
             onclick={() => {
               gameState.maiaAutoMode = gameState.maiaAutoMode === "white" ? "off" : "white"
@@ -577,11 +575,10 @@
             }}
           >
             Maia white
-          </button>
-          <button
-            class="rounded-r-md px-2 py-1 {gameState.maiaAutoMode === 'black'
-              ? 'bg-[#555577]'
-              : 'bg-[#1a202c] hover:bg-[#333355]'} outline outline-zinc-800 transition-colors duration-75 dark:outline-zinc-600"
+          </Button>
+          <Button
+            class="rounded-l-none"
+            checked={gameState.maiaAutoMode === "black"}
             title="Shortcut: F9 (when black)"
             onclick={() => {
               gameState.maiaAutoMode = gameState.maiaAutoMode === "black" ? "off" : "black"
@@ -590,14 +587,14 @@
             }}
           >
             Maia black
-          </button>
+          </Button>
         </div>
       </div>
       <div
         class="flex h-1/2 flex-1/2 shrink-0 flex-col rounded-sm outline outline-zinc-700"
         hidden={showEngineSettings}
       >
-        <div class="flex items-center justify-center gap-6 p-2">
+        <div class="flex items-center justify-center gap-6 border-b border-b-zinc-700 p-2">
           <div class="flex items-center gap-2" title="Shortcut: H">
             <input type="checkbox" id="checkbox1" bind:checked={config.value.humanSort} />
             <label for="checkbox1">Sort human</label>
@@ -611,7 +608,6 @@
             <label for="checkbox3">Hide black lines</label>
           </div>
         </div>
-        <hr class="mx-1 text-zinc-700" />
         <!-- Infobox -->
         <div class="flex-1">
           <Infobox node={gameState.currentNode} />

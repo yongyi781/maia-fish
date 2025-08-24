@@ -1,6 +1,7 @@
 <script lang="ts">
   import { config } from "../config.svelte"
   import { Engine } from "../engine.svelte"
+  import Button from "./Button.svelte"
 
   interface Props {
     engine: Engine
@@ -12,7 +13,7 @@
   let needsRestart = false
   const hashSizes = [128, 256, 512, 1024, 2048, 4096]
 
-  async function applySettings() {
+  async function applyEngineSettings() {
     if (needsRestart) {
       engine.state = "unloaded"
       await engine.start()
@@ -30,7 +31,8 @@
 {:then}
   {#if config.value.engine}
     {@const eng = config.value.engine}
-    <div class="rounded-lg bg-gray-800 p-4 text-white">
+    <h1 class="border-b border-b-gray-700 text-center text-2xl leading-12 font-bold">Engine</h1>
+    <div class="rounded-lg p-4 text-white">
       <div class="space-y-4">
         <!-- File Path -->
         <div class="flex items-center justify-between">
@@ -40,11 +42,10 @@
               type="text"
               id="engine-path"
               readonly
-              class="w-48 rounded bg-gray-700 px-2 py-1 font-mono text-sm"
+              class="w-48 rounded bg-gray-800 px-2 py-1 font-mono text-sm"
               bind:value={eng.path}
             />
-            <button
-              class="rounded-md bg-blue-600 px-4 py-1 font-semibold hover:bg-blue-700"
+            <Button
               onclick={async () => {
                 const path = await window.api.engine.choose()
                 if (path && path !== eng.path) {
@@ -54,7 +55,7 @@
               }}
             >
               Browse
-            </button>
+            </Button>
           </div>
         </div>
         <!-- Threads -->
@@ -68,9 +69,9 @@
               min="1"
               max="32"
               bind:value={eng.threads}
-              class="h-2 w-48 cursor-pointer appearance-none rounded-lg bg-gray-700"
+              class="h-2 w-48 cursor-pointer appearance-none rounded-lg bg-gray-800"
             />
-            <span class="w-12 rounded bg-gray-700 px-2 py-1 text-center font-mono text-sm">
+            <span class="w-12 rounded bg-gray-800 px-2 py-1 text-center font-mono text-sm">
               {eng.threads}
             </span>
           </div>
@@ -79,11 +80,11 @@
         <!-- Hash -->
         <div class="flex items-center justify-between">
           <label for="hash" class="font-medium">Hash (MB)</label>
-          <div class="flex flex-wrap items-center gap-1 rounded-md bg-gray-700 p-1">
+          <div class="flex flex-wrap items-center gap-1 rounded-md bg-gray-800 p-1">
             {#each hashSizes as size (size)}
               <button
                 class="rounded px-2 py-1 font-mono text-sm transition-colors duration-75 {eng.hash === size
-                  ? 'bg-blue-600'
+                  ? 'bg-gray-500'
                   : 'hover:bg-gray-600'}"
                 onclick={() => (eng.hash = size)}
               >
@@ -104,22 +105,59 @@
               min="1"
               max="256"
               bind:value={eng.multiPV}
-              class="h-2 w-48 cursor-pointer appearance-none rounded-lg bg-gray-700"
+              class="h-2 w-48 cursor-pointer appearance-none rounded-lg bg-gray-800"
             />
-            <span class="w-12 rounded bg-gray-700 px-2 py-1 text-center font-mono text-sm">
+            <span class="w-12 rounded bg-gray-800 px-2 py-1 text-center font-mono text-sm">
               {eng.multiPV}
             </span>
           </div>
         </div>
         <div class="flex justify-end pt-2">
-          <button
-            class="rounded-md bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
+          <Button
+            class="bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
             onclick={() => {
-              applySettings()
+              applyEngineSettings()
               onapply?.()
-            }}>Apply</button
+            }}
           >
+            Apply
+          </Button>
         </div>
+      </div>
+    </div>
+    <h1 class="border-y border-y-gray-700 text-center text-2xl leading-12 font-bold">Gameplay</h1>
+    <div class="rounded-lg p-4 text-white">
+      <div class="space-y-4">
+        <!-- Temperature -->
+        <div class="flex items-center justify-between">
+          <label for="temperature" class="font-medium">Temperature</label>
+          <div class="flex items-center space-x-2">
+            <input
+              type="range"
+              id="temperature"
+              name="temperature"
+              min="0"
+              max="2"
+              step="0.1"
+              bind:value={config.value.temperature}
+              ondblclick={() => (config.value.temperature = 1)}
+              class="h-2 w-48 cursor-pointer appearance-none rounded-lg bg-gray-800"
+            />
+            <span class="w-12 rounded bg-gray-800 px-2 py-1 text-center font-mono text-sm">
+              {Number(config.value.temperature).toFixed(2)}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end pt-2">
+        <Button
+          class="bg-blue-600 px-4 py-2 font-semibold hover:bg-blue-700"
+          onclick={() => {
+            onapply?.()
+          }}
+        >
+          Close
+        </Button>
       </div>
     </div>
   {/if}

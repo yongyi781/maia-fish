@@ -39,6 +39,14 @@ export function randomWeightedChoice<T>(arr: [T, number][]) {
   throw new Error("Unexpected error in weighted choice.")
 }
 
+/** Returns a random element from an array, weighted by its weight and temperature. */
+export function temperatureWeightedChoice<T>(arr: [T, number][], temperature: number) {
+  if (temperature === 0) {
+    return arr.reduce((prev, curr) => (curr[1] > prev[1] ? curr : prev))[0]
+  }
+  return randomWeightedChoice(arr.map((x) => [x[0], Math.pow(x[1], 1 / temperature)]))
+}
+
 /** Parses a UCI move string. */
 export function parseUci(str: string) {
   return cParseUci(str) as NormalMove

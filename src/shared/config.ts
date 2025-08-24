@@ -16,6 +16,7 @@ export const defaultConfig = {
   brilliantMoveThreshold: 0.03,
   /** The threshold of human probability for a move to be considered "great". */
   greatMoveThreshold: 0.1,
+  temperature: 1,
   engine: {
     path: "",
     threads: 2,
