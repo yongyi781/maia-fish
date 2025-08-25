@@ -30,18 +30,19 @@
   function sortedAnalyses() {
     const entries = node.data.sortedAnalyses
     const topEngineMoves = entries.slice(0, 3)
-    const topHumanMoves = entries.filter(([lan, a]) => humanProbability(a) > humanThreshold(a) || isNextMove(lan))
+    const topHumanMoves = entries.filter((a) => humanProbability(a) > humanThreshold(a) || isNextMove(a.lan))
     const set = new Set([...topEngineMoves, ...topHumanMoves])
-    return [...set].sort(([, a], [, b]) => cmp(b, a))
+    return [...set].sort((a, b) => cmp(b, a))
   }
 
   function hideLines() {
     return node.data.turn === "w" ? config.value?.hideLinesForWhite : config.value?.hideLinesForBlack
   }
 
-  function handleClick(e: MouseEvent, lan: string, a: MoveAnalysis) {
+  function handleClick(e: MouseEvent, a: MoveAnalysis) {
+    e.preventDefault()
     if (e.button === 0) {
-      gameState.makeMove(parseUci(lan))
+      gameState.makeMove(parseUci(a.lan))
     } else if (e.button === 1 || e.button === 2) {
       const res = gameState.currentNode.addLine(a.pv)
       if (e.button === 2) gameState.userSetCurrentNode(res)
@@ -55,10 +56,10 @@
 
 <div class="relative h-full">
   <div class="absolute max-h-full w-full overflow-auto p-1">
-    {#each sortedAnalyses() as [lan, a] (lan)}
+    {#each sortedAnalyses() as a (a.lan)}
       <button
-        class="flex w-full items-center gap-2 hover:bg-zinc-700 {isNextMove(lan) ? 'outline outline-zinc-500' : ''}"
-        onmousedown={(e) => handleClick(e, lan, a)}
+        class="flex w-full items-center gap-2 hover:bg-zinc-700 {isNextMove(a.lan) ? 'outline outline-zinc-500' : ''}"
+        onmousedown={(e) => handleClick(e, a)}
       >
         <Score class="min-w-12 text-right" score={a.score} best={node.data.eval} turn={node.data.turn} />
         <HumanProbability class="min-w-12 text-right" analysis={a} />

@@ -16,7 +16,7 @@
   import EngineSettings from "./components/Settings.svelte"
   import { config } from "./config.svelte"
   import { Engine } from "./engine.svelte"
-  import { fromPgnNode, gameState, humanProbability, Node } from "./game.svelte"
+  import { fromPgnNode, gameState, humanProbability, Node, type MoveAnalysis } from "./game.svelte"
   import { preprocess, processOutputs } from "./maia-utils"
   import {
     allLegalMoves,
@@ -51,7 +51,7 @@
     // Populate Maia evaluations
     const analyses = data.moveAnalyses
     engine.updatePosition(gameState.root.data.fen, gameState.currentNode.movesFromRootUci())
-    if (analyses.length !== 0 && analyses[0][1].maiaProbability === undefined) await populateMaiaProbabilities()
+    if (analyses.length !== 0 && analyses[0].maiaProbability === undefined) await populateMaiaProbabilities()
     return maybePlayMaiaMove()
   }
 
@@ -142,8 +142,8 @@
       eloOppoCategory
     })
     const outputs = await processOutputs(currentNode.data.fen, logits, value, legalMoves)
-    for (let [lan, a] of currentNode.data.moveAnalyses) {
-      a.maiaProbability = outputs.policy[lan]
+    for (let a of currentNode.data.moveAnalyses) {
+      a.maiaProbability = outputs.policy[a.lan]
     }
   }
 
@@ -164,13 +164,16 @@
     evalBar.reset()
   }
 
-  /** Gets current move analysis value by key. */
+  /** Gets the most recent move analysis value by key. */
   function analysisValue(key: string, f = formatNumber) {
-    const data = gameState.currentNode.data.moveAnalyses
-      .filter((a) => a[1][key] !== undefined)
-      .map((a) => a[1][key]) as number[]
-    if (data.length > 0) {
-      return f(data[0])
+    let ma: MoveAnalysis | undefined
+    for (const a of gameState.currentNode.data.moveAnalyses) {
+      if (a.lastUpdated && (!ma?.lastUpdated || a.lastUpdated > ma.lastUpdated)) {
+        ma = a
+      }
+    }
+    if (ma) {
+      return f(ma[key] as number)
     }
     return "?"
   }
@@ -220,7 +223,7 @@
     // See what Lichess has to say first...
     await gameState.currentNode.fetchLichessStats()
     const moves = gameState.currentNode.data.moveAnalyses
-      .map((a) => [a[0], humanProbability(a[1])] as [string, number])
+      .map((a) => [a.lan, humanProbability(a)] as [string, number])
       .filter((x) => x[1] > 0)
     if (moves.length === 0) return
     const move = temperatureWeightedChoice(moves, config.value.temperature)
@@ -482,7 +485,7 @@
             </div>
           {:else if engine.state === "unloaded"}
             <div class="w-full text-3xl font-bold">No engine loaded</div>
-          {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses[0]?.[1].depth}
+          {:else if !engine.analyzing && !gameState.currentNode.data.moveAnalyses.find((a) => a.lastUpdated !== undefined)}
             <div class="w-full text-3xl font-bold">Analyze</div>
           {:else}
             <div class="w-24 text-center text-3xl font-bold text-nowrap">

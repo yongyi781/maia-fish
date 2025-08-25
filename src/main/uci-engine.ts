@@ -40,12 +40,6 @@ function parseUciMoveInfo(line: string) {
           }
         }
         break
-      case "upperbound":
-        info.upperbound = parseInt(tokens[i++], 10)
-        break
-      case "lowerbound":
-        info.lowerbound = parseInt(tokens[i++], 10)
-        break
       case "nodes":
         info.nodes = parseInt(tokens[i++], 10)
         break

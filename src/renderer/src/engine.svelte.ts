@@ -136,18 +136,19 @@ export class Engine {
         info.depth !== undefined &&
         info.pv !== undefined &&
         info.pv.length > 0 &&
-        info.upperbound === undefined &&
-        info.lowerbound === undefined
+        info.score !== undefined &&
+        info.score.bound === undefined
       ) {
         const index = this.currentNodeData.lanToIndex.get(lan)
         if (index === undefined) {
           console.debug(`Stale move ignored: ${lan}`)
           break
         }
-        const entry = this.currentNodeData.moveAnalyses[index][1]
+        const entry = this.currentNodeData.moveAnalyses[index]
         if (entry && (!entry.depth || info.depth >= entry.depth)) {
           // Convert the PV to SAN.
           info.pv = pvUciToSan(this.pos, info.pv)
+          info.lastUpdated = performance.now()
           Object.assign(entry, info)
         }
       } else {
@@ -158,7 +159,7 @@ export class Engine {
       if (
         this.autoMode !== "off" &&
         limit !== undefined &&
-        gameState.currentNode.data.moveAnalyses.every((a) => a[1].depth !== undefined && a[1].depth >= limit)
+        gameState.currentNode.data.moveAnalyses.every((a) => a.depth !== undefined && a.depth >= limit)
       ) {
         if (this.autoMode === "forward") {
           if (!gameState.forward()) this.autoMode = "off"

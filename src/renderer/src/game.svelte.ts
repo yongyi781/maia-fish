@@ -44,6 +44,8 @@ export function rawEvalClamped(e: Score | undefined, upperBound = 800) {
 
 /** Analysis associated with each legal move. */
 export interface MoveAnalysis {
+  /** The LAN of the legal move. */
+  lan: string
   /** List of moves in the PV, in SAN format. */
   pv: string[]
   depth?: number
@@ -53,8 +55,8 @@ export interface MoveAnalysis {
   /** Number of nodes searched in this analysis. */
   nodes?: number
   nps?: number
-  /** Timestamp of the last update. For throttling. */
-  lastUpdate?: DOMHighResTimeStamp
+  /** Timestamp of the last update. */
+  lastUpdated?: DOMHighResTimeStamp
   [key: string]: unknown
 }
 
@@ -85,7 +87,7 @@ export class NodeData implements pgn.PgnNodeData {
   /** Side to move. */
   turn: "w" | "b"
   /** Legal move analyses: key is LAN, value iseval, depth, Maia policy, ... */
-  moveAnalyses: [string, MoveAnalysis][] = $state([])
+  moveAnalyses: MoveAnalysis[] = $state([])
   /** Mapping from LAN to index in `moveAnalyses`. */
   lanToIndex = new Map<string, number>()
   /** The parent node. */
@@ -109,13 +111,13 @@ export class NodeData implements pgn.PgnNodeData {
 
   /** Move analyses, sorted by engine evaluation. */
   sortedAnalyses = $derived(
-    this.moveAnalyses.toSorted(([, a1], [, a2]) => {
+    this.moveAnalyses.toSorted((a1, a2) => {
       return rawEval(a2.score) - rawEval(a1.score)
     })
   )
 
   /** Current position's evaluation. */
-  eval = $derived(this.sortedAnalyses[0]?.[1].score)
+  eval = $derived(this.sortedAnalyses[0]?.score)
 
   /** Current position's human evaluation, in centipawns. */
   humanEval = $derived(
@@ -123,10 +125,7 @@ export class NodeData implements pgn.PgnNodeData {
       ? undefined
       : ({
           type: "cp",
-          value: this.moveAnalyses.reduce(
-            (acc, [, ma]) => acc + rawEvalClamped(ma.score) * (humanProbability(ma) ?? 0),
-            0
-          )
+          value: this.moveAnalyses.reduce((acc, a) => acc + rawEvalClamped(a.score) * (humanProbability(a) ?? 0), 0)
         } as Score)
   )
 
@@ -134,10 +133,10 @@ export class NodeData implements pgn.PgnNodeData {
   topHumanMoveUci = $derived.by(() => {
     let res: string | undefined
     let maxProb = -Infinity
-    for (const [uci, a] of this.moveAnalyses) {
+    for (const a of this.moveAnalyses) {
       const p = humanProbability(a)
       if (p && p > maxProb) {
-        res = uci
+        res = a.lan
         maxProb = p
       }
     }
@@ -146,16 +145,16 @@ export class NodeData implements pgn.PgnNodeData {
 
   /** Gets the top engine move (multiple if tied) according to the analysis. */
   topEngineMovesUci = $derived.by(() => {
-    const entries = this.moveAnalyses.filter((a) => a[1].score !== undefined)
+    const entries = this.moveAnalyses.filter((a) => a.score !== undefined)
     if (entries.length === 0) return []
     let res: string[] = []
     let bestScore = -Infinity
-    for (const [uci, ma] of entries) {
-      if (rawEval(ma.score) > bestScore) {
-        res = [uci]
-        bestScore = rawEval(ma.score)
-      } else if (rawEval(ma.score) === bestScore) {
-        res.push(uci)
+    for (const a of entries) {
+      if (rawEval(a.score) > bestScore) {
+        res = [a.lan]
+        bestScore = rawEval(a.score)
+      } else if (rawEval(a.score) === bestScore) {
+        res.push(a.lan)
       }
     }
     return res
@@ -186,7 +185,7 @@ export class NodeData implements pgn.PgnNodeData {
     if (best === undefined || (best.type === "mate" && best.value < 0) || best.value < -500) return 1
     // Loop through best or good moves
     let res = 0
-    for (const [, a] of this.sortedAnalyses) {
+    for (const a of this.sortedAnalyses) {
       if (!a.score) continue
       if (moveQuality(a.score, best).threshold >= 0.1) break // Inaccuracy or worse
       res = Math.max(res, humanProbability(a))
@@ -213,7 +212,7 @@ export class NodeData implements pgn.PgnNodeData {
   moveAnalysis(lan: string) {
     const index = this.lanToIndex.get(lan)
     if (index === undefined) return undefined
-    return this.moveAnalyses[index][1]
+    return this.moveAnalyses[index]
   }
 
   /** Gets the move analysis corresponding to this node of the parent node. */
@@ -224,16 +223,16 @@ export class NodeData implements pgn.PgnNodeData {
   /** Resets the move analyses. */
   resetAnalysis() {
     if (this.moveAnalyses.length === 0) {
-      this.moveAnalyses = allLegalMoves(this.pos).map((move): [string, MoveAnalysis] => {
-        return [makeUci(move), { pv: [makeSan(this.pos, move)] }]
+      this.moveAnalyses = allLegalMoves(this.pos).map((move): MoveAnalysis => {
+        return { lan: makeUci(move), pv: [makeSan(this.pos, move)] }
       })
       for (let i = 0; i < this.moveAnalyses.length; i++) {
-        this.lanToIndex.set(this.moveAnalyses[i][0], i)
+        this.lanToIndex.set(this.moveAnalyses[i].lan, i)
       }
     } else {
-      for (const [move, a] of this.moveAnalyses) {
-        a.depth = a.lastUpdate = a.nodes = a.nps = a.score = undefined
-        a.pv = [makeSan(this.pos, parseUci(move))]
+      for (const a of this.moveAnalyses) {
+        a.depth = a.lastUpdated = a.nodes = a.nps = a.score = undefined
+        a.pv = [makeSan(this.pos, parseUci(a.lan))]
       }
     }
   }
@@ -324,7 +323,7 @@ export class Node implements pgn.Node<NodeData> {
       !config.value?.lichessBookRatings ||
       data.moveNumber > config.value.maiaBookMovesLimit ||
       data.moveAnalyses.length === 0 ||
-      data.moveAnalyses.some((a) => a[1].lichessProbability !== undefined)
+      data.moveAnalyses.some((a) => a.lichessProbability !== undefined)
     )
       return
     const url = makeLichessUrl(data.fen)
@@ -344,8 +343,8 @@ export class Node implements pgn.Node<NodeData> {
     if (totalGames < config.value.lichessThreshold) return
     const pos = chessFromFen(data.fen)
     if (json.opening) data.opening = json.opening
-    for (const [lan, a] of data.moveAnalyses) {
-      const move = json.moves.find((m) => makeUci(normalizeMove(pos, parseUci(m.uci))) === lan)
+    for (const a of data.moveAnalyses) {
+      const move = json.moves.find((m) => makeUci(normalizeMove(pos, parseUci(m.uci))) === a.lan)
       if (!move) a.lichessProbability = 0
       else a.lichessProbability = (move.white + move.draws + move.black) / totalGames
     }
