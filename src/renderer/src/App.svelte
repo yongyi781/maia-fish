@@ -172,7 +172,7 @@
         ma = a
       }
     }
-    if (ma) {
+    if (ma && ma[key] !== undefined) {
       return f(ma[key] as number)
     }
     return "?"

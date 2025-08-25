@@ -151,8 +151,6 @@ export class Engine {
           info.lastUpdated = performance.now()
           Object.assign(entry, info)
         }
-      } else {
-        console.warn("Hmm?")
       }
       // Step if auto-analyze depth limit is reached
       const limit = config.value.autoAnalyzeDepthLimit
