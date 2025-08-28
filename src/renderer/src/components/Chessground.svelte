@@ -400,7 +400,6 @@
     flex-flow: row;
     width: 100%;
     height: 16px;
-    text-transform: uppercase;
     text-align: center;
   }
 
