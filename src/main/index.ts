@@ -224,6 +224,13 @@ app.whenReady().then(async () => {
           }
         },
         {
+          label: "Delete children",
+          accelerator: "Ctrl+Backspace",
+          click() {
+            mainWindow.webContents.send("deleteChildren")
+          }
+        },
+        {
           label: "Delete other lines",
           accelerator: "X",
           click() {

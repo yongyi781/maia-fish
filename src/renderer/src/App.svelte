@@ -76,6 +76,8 @@
     if (parent) {
       parent.children = parent.children.filter((c) => c !== gameState.currentNode)
       gameState.userSetCurrentNode(parent)
+    } else {
+      gameState.root.children = []
     }
   }
 
@@ -376,6 +378,10 @@
       }),
 
       window.electron.ipcRenderer.on("deleteNode", deleteCurrentNode),
+      window.electron.ipcRenderer.on("deleteChildren", () => {
+        if (isTextFocused()) return
+        gameState.currentNode.children = []
+      }),
 
       window.electron.ipcRenderer.on("deleteOtherLines", () => {
         if (isTextFocused()) return
