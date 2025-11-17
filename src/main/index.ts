@@ -110,6 +110,7 @@ app.whenReady().then(async () => {
     if (info.pv) chunks.set(info.pv[0], info)
   })
   engine.on("position", (pos: string) => {
+    flush()
     mainWindow.webContents.send("engine:position", pos)
   })
   engine.on("bestmove", () => {
