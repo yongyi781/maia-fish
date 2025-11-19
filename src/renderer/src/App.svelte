@@ -131,7 +131,8 @@
 
   /** Triggers: `gameState.currentNode` and `config.value`. */
   $effect(() => {
-    gameState.currentNode.fetchLichessStats()
+    gameState.currentNode.data.moveNumber
+    untrack(() => gameState.currentNode.fetchLichessStats())
   })
 
   /** Evaluates the position with Maia. */

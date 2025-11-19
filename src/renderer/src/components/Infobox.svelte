@@ -56,7 +56,7 @@
 
 <div class="relative h-full">
   <div class="absolute max-h-full w-full overflow-auto p-1">
-    {#each sortedAnalyses() as a (a.lan)}
+    {#each sortedAnalyses() as a, i (i)}
       <button
         class="flex w-full items-center gap-2 hover:bg-zinc-700 {isNextMove(a.lan) ? 'outline outline-zinc-500' : ''}"
         onmousedown={(e) => handleClick(e, a)}
